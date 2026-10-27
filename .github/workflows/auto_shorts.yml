@@ -1,0 +1,67 @@
+name: Auto 24/7 International YouTube Shorts Bot
+
+on:
+  schedule:
+    # 4 KHUNG GIỜ VÀNG VIRAL QUỐC TẾ (US/UK/GLOBAL AUDIENCE):
+    # 1. 12:00 UTC = 07:00 AM EST (Sáng US thức dậy / Trưa UK 12:00) = 19:00 VN
+    # 2. 17:00 UTC = 12:00 PM EST (Trưa US cao điểm xem Shorts)     = 00:00 VN
+    # 3. 22:00 UTC = 05:00 PM EST (Chiều tan tầm US lướt điện thoại) = 05:00 VN
+    # 4. 02:00 UTC = 09:00 PM EST (Tối US lướt trước khi ngủ)        = 09:00 VN
+    - cron: '0 2,12,17,22 * * *'
+
+  # Cho phép bấm nút "Run workflow" để test ngay bất cứ lúc nào trên GitHub UI
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Cài đặt Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: 3. Cài đặt FFmpeg & Font chữ chuyên nghiệp
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-liberation fonts-dejavu-core fonts-freefont-ttf
+
+      - name: 4. Cài đặt thư viện Python
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 5. Khởi tạo Badge & Đồng bộ kho Footage Stock Video
+        env:
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+        run: |
+          python generate_polished_assets.py
+          python download_stock_videos.py
+
+      - name: 6. Khởi chạy Bot tự động sản xuất & Upload YouTube Short
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+          DEFAULT_VOICE: "en-US-ChristopherNeural"
+        run: |
+          python main.py
+
+      - name: 7. Lưu lịch sử chủ đề đã đăng (tránh trùng lặp 24/24)
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+          git add data/history.json
+          git commit -m "chore: Cập nhật lịch sử video đã tạo [skip ci]" || echo "Không có thay đổi lịch sử"
+          git push

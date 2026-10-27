@@ -1,0 +1,25 @@
+# Output folders
+output/
+*.mp4
+*.mp3
+*.ass
+*.jpg
+
+# But allow assets/riddle PNGs
+!assets/riddle/*.png
+!assets/music/*.mp3
+!assets/thumbnail.png
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.env
+data/youtube_credentials.json
+
+# OS specific
+.DS_Store
+Thumbs.db
