@@ -183,5 +183,37 @@
     "topic_name": "Midnight Mountain Ski Chalet Murder",
     "title": "Who Is The Killer? 95% Fail This Riddle! #Shorts",
     "generated_at": "40838507516"
+  },
+  {
+    "topic_name": "Royal Tapestry Weaving Guild Studio Murder",
+    "title": "Only 5% Of Detectives Solve This Riddle! #Shorts",
+    "setting_theme": "Royal Tapestry Weaving Guild Studio",
+    "culprit_role": "senior weaver",
+    "culprit_reason": "REASON: AN EXPRESS TRAIN CANNOT OVERTAKE ANOTHER TRAIN WHILE TRAVELING ON A SINGLE ONE-WAY TRACK!",
+    "generated_at": "local_ai"
+  },
+  {
+    "topic_name": "Swiss Vault Gold Safety Deposit Sanctuary Murder",
+    "title": "Who Is The Killer? 95% Fail This Riddle! #Shorts",
+    "setting_theme": "Swiss Private Vault Safety Deposit Sanctuary",
+    "culprit_role": "lead custodian",
+    "culprit_reason": "REASON: PURE 24-KARAT GOLD IS COMPLETELY NON-MAGNETIC AND CANNOT BE RETRIEVED WITH A MAGNETIC TOOL!",
+    "generated_at": "local_ai"
+  },
+  {
+    "topic_name": "Renaissance Clock Tower Gear Room Murder",
+    "title": "Only A True Detective Catches The Flaw! #Shorts",
+    "setting_theme": "Renaissance Clock Tower Gear Room",
+    "culprit_role": "archivist",
+    "culprit_reason": "REASON: A SUNDIAL CANNOT CAST A SHARP READABLE SHADOW DURING AN OVERCAST THUNDERSTORM!",
+    "generated_at": "local_ai"
+  },
+  {
+    "topic_name": "Subterranean Giant Crystal Cavern Murder",
+    "title": "Who Is The Killer? 95% Fail This Riddle! #Shorts",
+    "setting_theme": "Subterranean Giant Crystal Cavern",
+    "culprit_role": "archivist",
+    "culprit_reason": "REASON: SLICED FRESH APPLES RAPIDLY OXIDIZE AND TURN BROWN IN OPEN AIR, MAKING HIS EIGHT-HOUR PURE WHITE ALIBI SCIENTIFICALLY IMPOSSIBLE!",
+    "generated_at": "local_ai"
   }
 ]
