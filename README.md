@@ -1,7 +1,7 @@
 # 🕵️‍♂️ 24/7 AUTOMATED DETECTIVE CRIME RIDDLE SHORTS BOT (GLOBAL / HIGH-RPM)
 
 An autonomous AI engine running **24/7 on GitHub Actions** (100% Free with unlimited runner minutes on Public Repositories).
-Produces and uploads **4 high-retention 30-Second Detective Crime Riddle Shorts per day** targeting US/UK/Global audience (High RPM \$2 - \$5+).
+Produces and uploads **2 high-retention 30-Second Detective Crime Riddle Shorts per day (19:00 VN & 05:00 VN)** targeting US/UK/Global audience (High RPM \$2 - \$5+).
 
 ---
 
