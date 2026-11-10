@@ -27,37 +27,53 @@ def get_audio_duration(audio_path: str) -> float:
 def compute_scene_timestamps(words, suspect_keywords):
     """
     Computes exact scene split times based on Microsoft Speech WordBoundary data.
+    Guarantees strict forward monotonicity: intro < suspect_1 < suspect_2 < suspect_3 < challenge < count < reveal.
     """
     clean_words = [re.sub(r'[^a-zA-Z0-9]', '', w['text']).lower() for w in words]
     offsets = [w['offset'] / 10000000.0 for w in words]
 
-    # 1. Find suspects
+    # 1. Find suspects strictly in sequential forward order
     ts_suspects = []
+    last_idx = 0
+    prev_ts = 4.5  # Suspects section starts after intro hook
+
     for kw in suspect_keywords:
         ts = None
-        for i, cw in enumerate(clean_words):
+        match_idx = None
+        for i in range(last_idx, len(clean_words)):
+            cw = clean_words[i]
             if kw in cw:
-                if i > 0 and clean_words[i-1] == 'the':
-                    ts = offsets[i-1]
-                else:
-                    ts = offsets[i]
-                break
-        ts_suspects.append(ts)
+                cand_ts = offsets[i-1] if (i > 0 and clean_words[i-1] in ['the', 'suspect']) else offsets[i]
+                if cand_ts >= prev_ts + 2.0:
+                    ts = cand_ts
+                    match_idx = i
+                    break
 
-    # Fallbacks if any missing
-    if ts_suspects[0] is None: ts_suspects[0] = 8.0
-    if ts_suspects[1] is None: ts_suspects[1] = ts_suspects[0] + 3.5
-    if ts_suspects[2] is None: ts_suspects[2] = ts_suspects[1] + 3.5
+        if ts is not None and match_idx is not None:
+            ts_suspects.append(ts)
+            prev_ts = ts
+            last_idx = match_idx + 1
+        else:
+            fallback_ts = prev_ts + 3.2
+            ts_suspects.append(fallback_ts)
+            prev_ts = fallback_ts
 
-    # 2. Find challenge
+    # 2. Find challenge strictly after suspect 3
     ts_challenge = None
-    for i, cw in enumerate(clean_words):
-        if offsets[i] > ts_suspects[-1]:
-            if cw in ['one', 'spot'] and i + 1 < len(clean_words) and clean_words[i+1] in ['of', 'the']:
-                ts_challenge = offsets[i]
-                break
+    chal_idx = None
+    for i in range(last_idx, len(clean_words)):
+        cw = clean_words[i]
+        if cw in ['one', 'spot', 'liar', 'killer'] and offsets[i] >= prev_ts + 2.0:
+            ts_challenge = offsets[i]
+            chal_idx = i
+            break
+
     if ts_challenge is None:
-        ts_challenge = ts_suspects[-1] + 3.5
+        ts_challenge = prev_ts + 3.5
+        last_idx = len(clean_words)
+    else:
+        last_idx = chal_idx + 1
+    prev_ts = ts_challenge
 
     # 3. Find countdown numbers (five, four, three, two, one)
     ts_5 = None
@@ -65,41 +81,48 @@ def compute_scene_timestamps(words, suspect_keywords):
     ts_3 = None
     ts_2 = None
     ts_1 = None
-    for i, cw in enumerate(clean_words):
-        if offsets[i] > ts_challenge:
-            if cw == 'five' and ts_5 is None: ts_5 = offsets[i]
-            elif cw == 'four' and ts_5 and ts_4 is None: ts_4 = offsets[i]
-            elif cw == 'three' and ts_4 and ts_3 is None: ts_3 = offsets[i]
-            elif cw == 'two' and ts_3 and ts_2 is None: ts_2 = offsets[i]
-            elif cw == 'one' and ts_2 and ts_1 is None: ts_1 = offsets[i]
+    for i in range(last_idx, len(clean_words)):
+        cw = clean_words[i]
+        off = offsets[i]
+        if off > prev_ts:
+            if cw == 'five' and ts_5 is None: ts_5 = off
+            elif cw == 'four' and ts_5 and ts_4 is None: ts_4 = off
+            elif cw == 'three' and ts_4 and ts_3 is None: ts_3 = off
+            elif cw == 'two' and ts_3 and ts_2 is None: ts_2 = off
+            elif cw == 'one' and ts_2 and ts_1 is None:
+                ts_1 = off
+                last_idx = i + 1
 
-    if ts_5 is None: ts_5 = ts_challenge + 5.0
+    if ts_5 is None: ts_5 = prev_ts + 3.5
     if ts_4 is None: ts_4 = ts_5 + 0.8
     if ts_3 is None: ts_3 = ts_4 + 0.6
     if ts_2 is None: ts_2 = ts_3 + 0.6
     if ts_1 is None: ts_1 = ts_2 + 0.6
+    prev_ts = ts_1
 
-    # 4. Find reveal ("it was")
+    # 4. Find reveal ("it was") strictly after countdown
     ts_reveal = None
-    for i, cw in enumerate(clean_words):
-        if offsets[i] > ts_1:
-            if cw == 'it' and i + 1 < len(clean_words) and clean_words[i+1] == 'was':
+    for i in range(last_idx, len(clean_words)):
+        cw = clean_words[i]
+        if cw == 'it' and i + 1 < len(clean_words) and clean_words[i+1] == 'was':
+            if offsets[i] >= prev_ts:
                 ts_reveal = offsets[i]
                 break
+
     if ts_reveal is None:
-        ts_reveal = ts_1 + 1.2
+        ts_reveal = prev_ts + 1.2
 
     return {
-        "suspect_1": ts_suspects[0],
-        "suspect_2": ts_suspects[1],
-        "suspect_3": ts_suspects[2],
-        "challenge": ts_challenge,
-        "count_5": ts_5,
+        "suspect_1": max(4.0, ts_suspects[0]),
+        "suspect_2": max(ts_suspects[0] + 2.5, ts_suspects[1]),
+        "suspect_3": max(ts_suspects[1] + 2.5, ts_suspects[2]),
+        "challenge": max(ts_suspects[2] + 2.5, ts_challenge),
+        "count_5": max(ts_challenge + 2.5, ts_5),
         "count_4": ts_4,
         "count_3": ts_3,
         "count_2": ts_2,
         "count_1": ts_1,
-        "reveal": ts_reveal
+        "reveal": max(ts_1 + 0.8, ts_reveal)
     }
 
 def validate_video_file(file_path: str) -> str:
@@ -326,12 +349,12 @@ def render_final_short(image_paths: list, voice_audio: str, subtitle_ass: str, o
             "reveal": 28.0
         }
 
-    t_intro = ts["suspect_1"]
-    t_sus1 = ts["suspect_2"] - ts["suspect_1"]
-    t_sus2 = ts["suspect_3"] - ts["suspect_2"]
-    t_sus3 = ts["challenge"] - ts["suspect_3"]
-    t_chal = ts["count_5"] - ts["challenge"]
-    t_count = ts["reveal"] - ts["count_5"]
+    t_intro = max(ts["suspect_1"], 4.0)
+    t_sus1 = max(ts["suspect_2"] - ts["suspect_1"], 2.5)
+    t_sus2 = max(ts["suspect_3"] - ts["suspect_2"], 2.5)
+    t_sus3 = max(ts["challenge"] - ts["suspect_3"], 2.5)
+    t_chal = max(ts["count_5"] - ts["challenge"], 2.5)
+    t_count = max(ts["reveal"] - ts["count_5"], 3.0)
     t_reveal = max(total_duration - ts["reveal"], 4.0)
 
     print(f"Exact speech-aligned cuts: intro={t_intro:.2f}s, sus1={t_sus1:.2f}s, sus2={t_sus2:.2f}s, "

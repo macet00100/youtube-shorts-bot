@@ -103,7 +103,7 @@ async def generate_speech_and_subtitles(text: str, output_audio: str, output_ass
     os.makedirs(os.path.dirname(output_audio), exist_ok=True)
     os.makedirs(os.path.dirname(output_ass), exist_ok=True)
 
-    communicate = edge_tts.Communicate(text=text, voice=voice, rate="+6%", boundary="WordBoundary")
+    communicate = edge_tts.Communicate(text=text, voice=voice, rate="+14%", boundary="WordBoundary")
     words = []
 
     with open(output_audio, "wb") as file:

@@ -123,14 +123,26 @@ CONTRADICTIONS_POOL = [
 ]
 
 VIRAL_TITLES_POOL = [
-    "Who Is The Killer? 95% Fail This Riddle! #Shorts",
     "Can You Spot The Liar In 10 Seconds? 🕵️‍♂️ #Shorts",
-    "Only A True Detective Catches The Flaw! #Shorts",
+    "Only 5% Of Detectives Solve This Riddle! 🔍 #Shorts",
+    "Spot The Single Lie Before The Timer Ends! ⏳ #Shorts",
+    "Only A True Detective Catches The Flaw! 🚨 #Shorts",
     "99% Miss The Clue! Who Murdered The Victim? #Shorts",
-    "Detective IQ Test: Can You Catch The Killer? #Shorts",
-    "Only 5% Of Detectives Solve This Riddle! #Shorts",
-    "Can You Catch The Killer Before Time Runs Out? #Shorts",
-    "Spot The Single Lie Before The Timer Ends! #Shorts"
+    "Detective IQ Test: Can You Catch The Killer? 🧠 #Shorts",
+    "Can You Spot The Impossible Lie? 🧐 #Shorts",
+    "FBI Riddle: Spot The Killer Before Time Out! ⏱️ #Shorts",
+    "One Suspect Made A Fatal Mistake! Can You Spot It? #Shorts",
+    "Detective Challenge: Who Is The Killer? 🕵️ #Shorts",
+    "95% Fail! Spot The Lie In 5 Seconds! 😱 #Shorts",
+    "Can You Solve This Impossible Crime? 🔍 #Shorts",
+    "Only Geniuses Catch The Clue! #Shorts",
+    "The Detective Solved It In 5 Seconds! Can You? #Shorts",
+    "Spot The Killer Before The Red Stamp Appears! 🛑 #Shorts",
+    "Can You Catch The Liar Before The Countdown Ends? ⏳ #Shorts",
+    "Are You Smarter Than 95% Of Detectives? 🕵️ #Shorts",
+    "Spot The Flaw In Under 10 Seconds! 🔍 #Shorts",
+    "The Killer Left One Massive Clue! Did You See It? #Shorts",
+    "A Deadly Mystery: Who Is The Killer? 🩸 #Shorts"
 ]
 
 def load_history():
@@ -183,25 +195,29 @@ def check_is_duplicate(new_script: dict, history: list) -> tuple[bool, str]:
     new_topic_words = extract_core_keywords(clean_new_topic)
 
     # 2. Check each historical entry
+    # Check exact topic match against all history to ensure 100% unique names
     for h in history:
+        past_topic = h.get("topic_name", "").strip()
+        clean_past_topic = clean_topic_for_comparison(past_topic)
+        if new_topic.lower() == past_topic.lower() or (clean_new_topic and clean_new_topic == clean_past_topic):
+            return True, f"Exact topic name match with history: '{past_topic}'"
+
+    # Check fuzzy similarity & contradiction collision only against the recent 20 videos (sliding window)
+    recent_history = history[-20:] if len(history) > 20 else history
+    for h in recent_history:
         past_topic = h.get("topic_name", "").strip()
         past_reason = h.get("culprit_reason", "").strip().upper()
         clean_past_topic = clean_topic_for_comparison(past_topic)
 
-        # Check A: Exact topic match
-        if new_topic.lower() == past_topic.lower() or clean_new_topic == clean_past_topic:
-            return True, f"Exact topic name match with history: '{past_topic}'"
-
         # Check B: High SequenceMatcher topic similarity on cleaned text
         sim_topic = difflib.SequenceMatcher(None, clean_new_topic, clean_past_topic).ratio()
-        if sim_topic > 0.60:
-            return True, f"Topic similarity too high ({sim_topic:.2f}) with past topic: '{past_topic}'"
+        if sim_topic > 0.65:
+            return True, f"Topic similarity too high ({sim_topic:.2f}) with recent topic: '{past_topic}'"
 
-        # Check C: Core setting keyword collision (e.g. greenhouse, bakery, lighthouse, ski, hotel)
+        # Check C: Core setting keyword collision within recent window
         past_topic_words = extract_core_keywords(clean_past_topic)
         overlap = new_topic_words.intersection(past_topic_words)
         if overlap:
-            # If any distinctive setting noun matches (e.g. greenhouse, bakery, lighthouse)
             distinctive_setting_words = {
                 "greenhouse", "bakery", "lighthouse", "hotel", "chalet", "observatory",
                 "planetarium", "museum", "casino", "aquarium", "winery", "library",
@@ -209,13 +225,13 @@ def check_is_duplicate(new_script: dict, history: list) -> tuple[bool, str]:
             }
             colliding = overlap.intersection(distinctive_setting_words)
             if colliding:
-                return True, f"Topic shares distinctive setting keyword {colliding} with past topic: '{past_topic}'"
+                return True, f"Topic shares distinctive setting keyword {colliding} with recent topic: '{past_topic}'"
 
-        # Check D: Reason keyword collision (e.g. sunbathing, watering plants, sub-zero coffee)
+        # Check D: Reason keyword collision within recent window
         if past_reason and new_reason:
             sim_reason = difflib.SequenceMatcher(None, new_reason, past_reason).ratio()
-            if sim_reason > 0.60:
-                return True, f"Culprit contradiction reason similarity too high ({sim_reason:.2f}) with: '{past_reason}'"
+            if sim_reason > 0.70:
+                return True, f"Culprit contradiction reason similarity too high ({sim_reason:.2f}) with recent: '{past_reason}'"
 
     # 3. Explicitly ban ancient repetitive tropes
     banned_tropes = [
@@ -240,9 +256,10 @@ def generate_script_with_ai(history: list, max_attempts: int = 4) -> dict:
     history_topics = [h.get("topic_name", "") for h in history if h.get("topic_name")]
     recent_topics_str = ", ".join(history_topics[-35:]) if history_topics else "None"
 
-    # Identify settings and contradictions already used in history
+    # Identify settings and contradictions already used in recent sliding window
+    recent_history = history[-20:] if len(history) > 20 else history
     used_keywords = set()
-    for h in history:
+    for h in recent_history:
         used_keywords.update(extract_core_keywords(h.get("topic_name", "")))
         if h.get("culprit_reason"):
             used_keywords.update(extract_core_keywords(h.get("culprit_reason", "")))
@@ -297,7 +314,7 @@ MANDATORY PROCEDURAL CONSTRAINTS (ZERO REPETITION):
    - BANNED TROPES: Sunbathing at night, watering plants/flowers in freezing blizzard, hot coffee freezing in sub-zero wind, checking tickets in pitch darkness, mail on Sunday.
 
 Strict Formula for 150%+ Retention (Watch-Time + Replay):
-1. LENGTH: Exactly 75 to 85 spoken English words (30 to 33 seconds spoken).
+1. LENGTH: Exactly 65 to 75 spoken English words (22 to 26 seconds spoken). FAST, CRISP, VIRAL.
 2. STRUCTURE:
    - Seconds 0-8 (CRIME HOOK): A murder mystery setup in {chosen_setting['name']}.
    - Seconds 8-19 (THE 3 SUSPECTS): 3 suspects with concise, tailored roles for {chosen_setting['name']}. Suspect {target_culprit_idx} tells the physical lie.
@@ -311,7 +328,7 @@ OUTPUT FORMAT: Strict valid JSON only:
   "description": "Can you solve this crime mystery in 10 seconds? Spot the liar! #Shorts #CrimeRiddle #Detective #Mystery #IQTest #BrainTeaser",
   "tags": ["Shorts", "CrimeRiddle", "DetectiveRiddle", "Riddle", "Mystery", "BrainTeaser", "IQTest"],
   "setting_query": "{chosen_setting['search']}",
-  "full_text": "Complete spoken voiceover text from start to end (75-85 words)",
+  "full_text": "Complete spoken voiceover text from start to end (65-75 words)",
   "suspect_1": {{
     "role": "ROLE 1",
     "title": "SUSPECT 1: ROLE 1",

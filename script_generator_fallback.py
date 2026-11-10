@@ -1223,8 +1223,10 @@ def get_fallback_script(history: list) -> dict:
         if not available:
             available = FALLBACK_TEMPLATES
 
-    selected = random.choice(available)
-    print(f"Dự phòng kích hoạt: Chọn kịch bản mẫu số độc bản: '{selected['topic_name']}'")
+    from script_generator import VIRAL_TITLES_POOL
+    selected = dict(random.choice(available))
+    selected["title"] = random.choice(VIRAL_TITLES_POOL)
+    print(f"Dự phòng kích hoạt: Chọn kịch bản mẫu số độc bản: '{selected['topic_name']}' với tiêu đề '{selected['title']}'")
 
     # Record in history
     history.append({

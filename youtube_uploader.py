@@ -71,12 +71,17 @@ def upload_short(video_file: str, title: str, description: str, tags: list, priv
 
     youtube = get_authenticated_service()
 
+    # Enrich tags for maximum algorithm discovery
+    all_tags = list(set(tags + ["Shorts", "CrimeRiddle", "DetectiveRiddle", "Riddle", "Mystery", "BrainTeaser", "IQTest", "Quiz", "Puzzle", "ViralShorts"]))
+
     body = {
         "snippet": {
             "title": title[:100],
-            "description": description[:5000],
-            "tags": tags,
-            "categoryId": "27"  # 27 = Education, 28 = Science & Technology
+            "description": f"{description}\n\nCan you solve this crime mystery in 10 seconds? Spot the liar!\n\n#Shorts #CrimeRiddle #Detective #Mystery #IQTest #BrainTeaser #Quiz",
+            "tags": all_tags[:20],
+            "categoryId": "24",  # 24 = Entertainment (High viral reach for Shorts)
+            "defaultLanguage": "en",
+            "defaultAudioLanguage": "en-US"
         },
         "status": {
             "privacyStatus": privacy_status,
