@@ -36,7 +36,7 @@ def compute_scene_timestamps(words: list, suspect_keywords: list) -> dict:
     # 1. Sequential search for 3 suspects
     ts_suspects = []
     last_idx = 0
-    prev_ts = 3.5
+    prev_ts = 3.2
 
     for kw in suspect_keywords:
         kw_clean = kw.lower().strip()
@@ -56,11 +56,11 @@ def compute_scene_timestamps(words: list, suspect_keywords: list) -> dict:
             prev_ts = ts
             last_idx = match_idx + 1
         else:
-            fallback_ts = prev_ts + 3.0
+            fallback_ts = prev_ts + 2.8
             ts_suspects.append(fallback_ts)
             prev_ts = fallback_ts
 
-    # 2. Challenge sentence ("one of them", "spot", "killer", "lying")
+    # 2. Challenge sentence ("one is", "spot", "killer", "lying")
     ts_challenge = None
     chal_idx = None
     for i in range(last_idx, len(clean_words)):
@@ -71,7 +71,7 @@ def compute_scene_timestamps(words: list, suspect_keywords: list) -> dict:
             break
 
     if ts_challenge is None:
-        ts_challenge = prev_ts + 3.2
+        ts_challenge = prev_ts + 2.8
         last_idx = len(clean_words)
     else:
         last_idx = chal_idx + 1
@@ -93,9 +93,9 @@ def compute_scene_timestamps(words: list, suspect_keywords: list) -> dict:
                 ts_1 = off
                 last_idx = i + 1
 
-    if ts_3 is None: ts_3 = prev_ts + 2.5
-    if ts_2 is None: ts_2 = ts_3 + 0.7
-    if ts_1 is None: ts_1 = ts_2 + 0.7
+    if ts_3 is None: ts_3 = prev_ts + 2.2
+    if ts_2 is None: ts_2 = ts_3 + 0.65
+    if ts_1 is None: ts_1 = ts_2 + 0.65
     prev_ts = ts_1
 
     # 4. Reveal ("it was")
@@ -108,43 +108,40 @@ def compute_scene_timestamps(words: list, suspect_keywords: list) -> dict:
                 break
 
     if ts_reveal is None:
-        ts_reveal = prev_ts + 0.9
+        ts_reveal = prev_ts + 0.85
 
     return {
-        "suspect_1": max(3.5, ts_suspects[0]),
-        "suspect_2": max(ts_suspects[0] + 2.2, ts_suspects[1]),
-        "suspect_3": max(ts_suspects[1] + 2.2, ts_suspects[2]),
-        "challenge": max(ts_suspects[2] + 2.2, ts_challenge),
-        "count_3": max(ts_challenge + 2.0, ts_3),
+        "suspect_1": max(3.2, ts_suspects[0]),
+        "suspect_2": max(ts_suspects[0] + 2.0, ts_suspects[1]),
+        "suspect_3": max(ts_suspects[1] + 2.0, ts_suspects[2]),
+        "challenge": max(ts_suspects[2] + 2.0, ts_challenge),
+        "count_3": max(ts_challenge + 1.8, ts_3),
         "count_2": ts_2,
         "count_1": ts_1,
-        "reveal": max(ts_1 + 0.7, ts_reveal)
+        "reveal": max(ts_1 + 0.65, ts_reveal)
     }
 
 def create_kenburns_segment(image_path: str, badge_overlay: str, duration: float, output_path: str, motion_type: str = "zoom_in") -> str:
     """
-    Renders an individual scene video clip with smooth Ken Burns camera motion and UI overlays:
-    - Top Banner at y=80
-    - Alibi Card at y=240
-    - Zero reusable video templates, 100% unique AI scene illustration!
+    Renders an individual scene video clip with smooth Ken Burns camera motion and
+    YouTube Shorts Safe Zone compliant overlays:
+    - Top Banner at y=120 (clearing 100px status bar)
+    - Alibi Card at y=290 (centered, 70px side margins)
     """
     banner = os.path.abspath("assets/riddle/riddle_banner.png").replace("\\", "/")
     img = os.path.abspath(image_path).replace("\\", "/")
     d = max(0.5, duration)
 
-    # Mathematical Ken Burns camera motion expressions
     if motion_type == "zoom_in":
-        kb_filter = f"fps={FPS},scale=w='{VIDEO_WIDTH}*(1+0.08*t/{d:.3f})':h='{VIDEO_HEIGHT}*(1+0.08*t/{d:.3f})':eval=frame,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(in_w-{VIDEO_WIDTH})/2:(in_h-{VIDEO_HEIGHT})/2,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
+        kb_filter = f"fps={FPS},scale=w='{VIDEO_WIDTH}*(1+0.07*t/{d:.3f})':h='{VIDEO_HEIGHT}*(1+0.07*t/{d:.3f})':eval=frame,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(in_w-{VIDEO_WIDTH})/2:(in_h-{VIDEO_HEIGHT})/2,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
     elif motion_type == "pan_right":
-        scale_w = int(VIDEO_WIDTH * 1.10)
-        scale_h = int(VIDEO_HEIGHT * 1.10)
+        scale_w = int(VIDEO_WIDTH * 1.08)
+        scale_h = int(VIDEO_HEIGHT * 1.08)
         kb_filter = f"fps={FPS},scale={scale_w}:{scale_h},crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:'({scale_w}-{VIDEO_WIDTH})*(t/{d:.3f})':'({scale_h}-{VIDEO_HEIGHT})/2',setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
     elif motion_type == "pan_left":
-        scale_w = int(VIDEO_WIDTH * 1.10)
-        scale_h = int(VIDEO_HEIGHT * 1.10)
+        scale_w = int(VIDEO_WIDTH * 1.08)
+        scale_h = int(VIDEO_HEIGHT * 1.08)
         kb_filter = f"fps={FPS},scale={scale_w}:{scale_h},crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:'({scale_w}-{VIDEO_WIDTH})*(1-t/{d:.3f})':'({scale_h}-{VIDEO_HEIGHT})/2',setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
-    elif motion_type == "zoom_out":
-        kb_filter = f"fps={FPS},scale=w='{VIDEO_WIDTH}*(1.08-0.08*t/{d:.3f})':h='{VIDEO_HEIGHT}*(1.08-0.08*t/{d:.3f})':eval=frame,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(in_w-{VIDEO_WIDTH})/2:(in_h-{VIDEO_HEIGHT})/2,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
     else:
         kb_filter = f"fps={FPS},scale=w='{VIDEO_WIDTH}*(1+0.06*t/{d:.3f})':h='{VIDEO_HEIGHT}*(1+0.06*t/{d:.3f})':eval=frame,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(in_w-{VIDEO_WIDTH})/2:(in_h-{VIDEO_HEIGHT})/2,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
 
@@ -152,14 +149,14 @@ def create_kenburns_segment(image_path: str, badge_overlay: str, duration: float
         badge = os.path.abspath(badge_overlay).replace("\\", "/")
         filter_complex = (
             f"[0:v]{kb_filter};"
-            f"[base][1:v]overlay=(W-w)/2:80[v1];"
-            f"[v1][2:v]overlay=(W-w)/2:240[v]"
+            f"[base][1:v]overlay=(W-w)/2:120[v1];"
+            f"[v1][2:v]overlay=(W-w)/2:290[v]"
         )
         inputs = ["-loop", "1", "-i", img, "-loop", "1", "-i", banner, "-loop", "1", "-i", badge]
     else:
         filter_complex = (
             f"[0:v]{kb_filter};"
-            f"[base][1:v]overlay=(W-w)/2:80[v]"
+            f"[base][1:v]overlay=(W-w)/2:120[v]"
         )
         inputs = ["-loop", "1", "-i", img, "-loop", "1", "-i", banner]
 
@@ -181,8 +178,10 @@ def create_kenburns_segment(image_path: str, badge_overlay: str, duration: float
 def create_lineup_countdown_segment(bg_image: str, lineup_screen: str, duration: float, output_path: str, ts_info: dict) -> str:
     """
     Renders the SUSPECT LINEUP screen with active 3-second live countdown (3 -> 2 -> 1).
-    Displays all 3 suspects stacked together so viewers can pause and re-check alibis.
-    NO TW STEEL watch clip, clean and informative!
+    Safe Zone compliant:
+    - Banner at y=120
+    - Lineup Screen (940x600) at y=290
+    - Timer (460x170) at y=920 (centered, 310px margin clearing 150px right buttons!)
     """
     banner = os.path.abspath("assets/riddle/riddle_banner.png").replace("\\", "/")
     lineup = os.path.abspath(lineup_screen).replace("\\", "/")
@@ -193,19 +192,18 @@ def create_lineup_countdown_segment(bg_image: str, lineup_screen: str, duration:
 
     d = max(2.5, duration)
     t_start = ts_info.get("count_3", 0.0)
-    d2 = max(0.4, ts_info.get("count_2", t_start + 0.7) - t_start)
-    d1 = max(d2 + 0.4, ts_info.get("count_1", t_start + 1.4) - t_start)
+    d2 = max(0.35, ts_info.get("count_2", t_start + 0.65) - t_start)
+    d1 = max(d2 + 0.35, ts_info.get("count_1", t_start + 1.30) - t_start)
 
-    # Subtle camera zoom on backdrop
     kb_filter = f"fps={FPS},scale=w='{VIDEO_WIDTH}*(1+0.04*t/{d:.3f})':h='{VIDEO_HEIGHT}*(1+0.04*t/{d:.3f})':eval=frame,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(in_w-{VIDEO_WIDTH})/2:(in_h-{VIDEO_HEIGHT})/2,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
 
     filter_complex = (
         f"[0:v]{kb_filter};"
-        f"[base][1:v]overlay=(W-w)/2:80[v0];"
-        f"[v0][2:v]overlay=(W-w)/2:240[v_lineup];"
-        f"[v_lineup][3:v]overlay=(W-w)/2:910:enable='between(t,0,{d2:.2f})'[v_t3];"
-        f"[v_t3][4:v]overlay=(W-w)/2:910:enable='between(t,{d2:.2f},{d1:.2f})'[v_t2];"
-        f"[v_t2][5:v]overlay=(W-w)/2:910:enable='gte(t,{d1:.2f})'[v]"
+        f"[base][1:v]overlay=(W-w)/2:120[v0];"
+        f"[v0][2:v]overlay=(W-w)/2:290[v_lineup];"
+        f"[v_lineup][3:v]overlay=(W-w)/2:920:enable='between(t,0,{d2:.2f})'[v_t3];"
+        f"[v_t3][4:v]overlay=(W-w)/2:920:enable='between(t,{d2:.2f},{d1:.2f})'[v_t2];"
+        f"[v_t2][5:v]overlay=(W-w)/2:920:enable='gte(t,{d1:.2f})'[v]"
     )
 
     cmd = [
@@ -231,7 +229,7 @@ def create_lineup_countdown_segment(bg_image: str, lineup_screen: str, duration:
 def create_reveal_segment(reveal_image: str, guilty_stamp: str, duration: float, output_path: str) -> str:
     """
     Renders the dramatic revelation scene:
-    Slow zoom-in on the evidence / exposure visual with CASE SOLVED: GUILTY stamp at y=360.
+    Slow zoom-in on the evidence with CASE SOLVED: GUILTY stamp at y=340.
     Ends sharply without lingering delay.
     """
     banner = os.path.abspath("assets/riddle/riddle_banner.png").replace("\\", "/")
@@ -239,13 +237,12 @@ def create_reveal_segment(reveal_image: str, guilty_stamp: str, duration: float,
     img = os.path.abspath(reveal_image).replace("\\", "/")
     d = max(1.5, duration)
 
-    # Dramatic camera zoom-in toward evidence
-    kb_filter = f"fps={FPS},scale=w='{VIDEO_WIDTH}*(1+0.12*t/{d:.3f})':h='{VIDEO_HEIGHT}*(1+0.12*t/{d:.3f})':eval=frame,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(in_w-{VIDEO_WIDTH})/2:(in_h-{VIDEO_HEIGHT})/2,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
+    kb_filter = f"fps={FPS},scale=w='{VIDEO_WIDTH}*(1+0.10*t/{d:.3f})':h='{VIDEO_HEIGHT}*(1+0.10*t/{d:.3f})':eval=frame,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(in_w-{VIDEO_WIDTH})/2:(in_h-{VIDEO_HEIGHT})/2,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
 
     filter_complex = (
         f"[0:v]{kb_filter};"
-        f"[base][1:v]overlay=(W-w)/2:80[v1];"
-        f"[v1][2:v]overlay=(W-w)/2:360[v]"
+        f"[base][1:v]overlay=(W-w)/2:120[v1];"
+        f"[v1][2:v]overlay=(W-w)/2:340[v]"
     )
 
     cmd = [
@@ -272,12 +269,12 @@ def render_final_short(scene_images: dict, voice_audio: str, subtitle_ass: str, 
     2. 5 AI scene illustrations with smooth Ken Burns pan/zoom.
     3. 3-second live countdown on the Suspect Lineup screen.
     4. Crisp, decisive reveal with CASE SOLVED: GUILTY stamp.
+    5. Safe Zone compliant layout avoiding bottom 320px and right 150px.
     """
     os.makedirs(os.path.dirname(output_video), exist_ok=True)
     total_duration = get_audio_duration(voice_audio)
     temp_dir = os.path.dirname(output_video)
 
-    # Load words if not passed
     if not words_data:
         words_json_path = subtitle_ass.replace('.ass', '_words.json')
         if os.path.exists(words_json_path):
@@ -295,32 +292,30 @@ def render_final_short(scene_images: dict, voice_audio: str, subtitle_ass: str, 
     ])
     guilty_stamp = script_data.get("guilty_stamp", "assets/riddle/guilty_stamp.png")
 
-    # Speech transition timestamps
     if words_data:
         ts = compute_scene_timestamps(words_data, suspect_kws)
     else:
         ts = {
-            "suspect_1": 4.0, "suspect_2": 7.5, "suspect_3": 11.0,
-            "challenge": 14.5, "count_3": 18.0, "count_2": 18.8,
-            "count_1": 19.6, "reveal": 20.8
+            "suspect_1": 3.8, "suspect_2": 6.8, "suspect_3": 9.8,
+            "challenge": 12.8, "count_3": 15.8, "count_2": 16.5,
+            "count_1": 17.2, "reveal": 18.2
         }
 
-    t_hook = max(ts["suspect_1"], 3.5)
-    t_sus1 = max(ts["suspect_2"] - ts["suspect_1"], 2.2)
-    t_sus2 = max(ts["suspect_3"] - ts["suspect_2"], 2.2)
-    t_sus3 = max(ts["challenge"] - ts["suspect_3"], 2.2)
-    t_count = max(ts["reveal"] - ts["challenge"], 3.0)
-    # Crisp ending: 3.5s to 4.5s for the reveal statement and GUILTY stamp
-    t_reveal = max(total_duration - ts["reveal"], 3.5)
+    t_hook = max(ts["suspect_1"], 3.2)
+    t_sus1 = max(ts["suspect_2"] - ts["suspect_1"], 2.0)
+    t_sus2 = max(ts["suspect_3"] - ts["suspect_2"], 2.0)
+    t_sus3 = max(ts["challenge"] - ts["suspect_3"], 2.0)
+    t_count = max(ts["reveal"] - ts["challenge"], 2.8)
+    t_reveal = max(total_duration - ts["reveal"], 3.0)
 
     print(f"🎬 Scene cuts (Total audio: {total_duration:.2f}s): "
           f"Hook={t_hook:.2f}s, Sus1={t_sus1:.2f}s, Sus2={t_sus2:.2f}s, "
           f"Sus3={t_sus3:.2f}s, Countdown={t_count:.2f}s, Reveal={t_reveal:.2f}s")
 
-    img_hook = scene_images.get("hook", "assets/characters/mansion.jpg")
-    img_s1 = scene_images.get("suspect_1", "assets/characters/butler.jpg")
-    img_s2 = scene_images.get("suspect_2", "assets/characters/maid.jpg")
-    img_s3 = scene_images.get("suspect_3", "assets/characters/butler.jpg")
+    img_hook = scene_images.get("hook")
+    img_s1 = scene_images.get("suspect_1")
+    img_s2 = scene_images.get("suspect_2")
+    img_s3 = scene_images.get("suspect_3")
     img_rev = scene_images.get("reveal", img_hook)
 
     # 1. Hook Scene (0.0s immediately, slow zoom-in)
@@ -344,7 +339,6 @@ def render_final_short(scene_images: dict, voice_audio: str, subtitle_ass: str, 
 
     segment_files = [seg1, seg2, seg3, seg4, seg5, seg6]
 
-    # Background music
     bg_music_file = None
     if os.path.exists(MUSIC_DIR):
         candidates = [os.path.join(MUSIC_DIR, f) for f in os.listdir(MUSIC_DIR) if f.endswith(('.mp3', '.wav', '.m4a'))]
@@ -396,7 +390,6 @@ def render_final_short(scene_images: dict, voice_audio: str, subtitle_ass: str, 
         print(f"FFmpeg error: {res.stderr}")
         raise RuntimeError(f"FFmpeg render failed: {res.stderr}")
 
-    # Clean up temp segments
     for s in segment_files:
         try:
             if os.path.exists(s):

@@ -34,7 +34,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial Black,105,&H0000FFFF,&H000000FF,&H00000000,&H90000000,-1,0,0,0,100,100,0,0,1,10,5,2,100,100,400,1
+Style: Default,Arial Black,92,&H0000FFFF,&H000000FF,&H00000000,&H90000000,-1,0,0,0,100,100,0,0,1,9,4,2,180,180,460,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -122,8 +122,8 @@ async def generate_speech_and_subtitles(text: str, output_audio: str, output_ass
     os.makedirs(os.path.dirname(output_ass), exist_ok=True)
 
     raw_audio = output_audio + ".raw.mp3"
-    # Speech rate +15% for crisp, fast-paced retention matching 22-26s target
-    communicate = edge_tts.Communicate(text=text, voice=voice, rate="+15%", boundary="WordBoundary")
+    # Speech rate +16% for crisp, fast-paced retention matching 22-26s target
+    communicate = edge_tts.Communicate(text=text, voice=voice, rate="+16%", boundary="WordBoundary")
     words = []
 
     with open(raw_audio, "wb") as file:

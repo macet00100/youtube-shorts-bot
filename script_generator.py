@@ -39,99 +39,144 @@ def call_gemini_api(payload: dict, timeout: int = 35) -> dict:
                 time.sleep(1.0)
     raise RuntimeError(f"All Gemini models failed: {last_err}")
 
-# Unified Art Style applied across all scenes for visual consistency
+# Unified Art Style applied across all scenes
 BASE_ART_STYLE = (
     "moody noir detective comic illustration, dark cinematic graphic novel art style, "
     "dramatic rim lighting, high contrast shadows, detailed textures, 9:16 vertical composition"
 )
 
 # ==============================================================================
-# PROCEDURAL DIMENSION MATRIX
+# PROCEDURAL DIMENSION MATRIX (SOPHISTICATED EVERYDAY DETECTIVE RIDDLES)
 # ==============================================================================
 
 SETTINGS_POOL = [
-    # High-Tech & Space
-    {"name": "Mars Habitat Bio-Dome", "category": "tech_space", "role_hint": "Commander, Astrobiologist, System Engineer"},
-    {"name": "Deep-Sea Submarine Laboratory", "category": "tech_space", "role_hint": "Captain, Sonar Tech, Marine Biologist"},
-    {"name": "Cryogenic Quantum Server Vault", "category": "tech_space", "role_hint": "Data Architect, Cryo Engineer, Security Lead"},
-    {"name": "Cleanroom Semiconductor Foundry", "category": "tech_space", "role_hint": "Laser Tech, Chemist, Quality Inspector"},
-    {"name": "Subterranean Particle Accelerator", "category": "tech_space", "role_hint": "Physicist, Magnet Engineer, Radiation Officer"},
-    {"name": "Orbital Space Station Cupola", "category": "tech_space", "role_hint": "Flight Engineer, Payload Specialist, Pilot"},
+    # High-Tech & Science
+    {"name": "Cleanroom Semiconductor Foundry", "category": "tech_science", "role_hint": "Laser Tech, Senior Chemist, Cleanroom Operator"},
+    {"name": "Cryogenic Quantum Server Vault", "category": "tech_science", "role_hint": "Cryo Engineer, Systems Admin, Security Officer"},
+    {"name": "Deep-Sea Submarine Laboratory", "category": "tech_science", "role_hint": "Navigator, Marine Biologist, Sonar Operator"},
+    {"name": "High-Altitude Astronomical Observatory", "category": "tech_science", "role_hint": "Astronomer, Lens Polisher, Night Guard"},
 
-    # Wild Nature & Extreme Expeditions
-    {"name": "Sahara Desert Archaeological Dig", "category": "expedition", "role_hint": "Archaeologist, Cartographer, Drone Operator"},
-    {"name": "Himalayan High-Altitude Basecamp", "category": "expedition", "role_hint": "Expedition Leader, Sherpa Guide, Meteorologist"},
-    {"name": "Amazon Canopy Research Station", "category": "expedition", "role_hint": "Botanist, Entomologist, Field Medic"},
+    # Luxury, Arts & Antiquities
+    {"name": "Stradivarius Violin Atelier", "category": "arts_luxury", "role_hint": "Master Luthier, Wood Varnisher, Museum Curator"},
+    {"name": "Venetian Glassblowing Workshop", "category": "arts_luxury", "role_hint": "Master Glassblower, Furnace Keeper, Gallery Dealer"},
+    {"name": "Ancient Manuscript Archives Vault", "category": "arts_luxury", "role_hint": "Head Archivist, Paper Conservator, Bookbinder"},
+    {"name": "High-Security Diamond Cutting Guild", "category": "arts_luxury", "role_hint": "Gem Appraiser, Diamond Cutter, Vault Guard"},
+
+    # Extreme Expeditions & Weather
+    {"name": "Arctic Glaciology Research Camp", "category": "expedition", "role_hint": "Glaciologist, Station Mechanic, Drone Pilot"},
     {"name": "Active Volcano Caldera Lab", "category": "expedition", "role_hint": "Volcanologist, Seismologist, Thermal Tech"},
-    {"name": "Arctic Ice Core Drilling Camp", "category": "expedition", "role_hint": "Glaciologist, Drill Mechanic, Camp Cook"},
-    {"name": "Deep Ocean Geothermal Vent Rig", "category": "expedition", "role_hint": "Geochemist, Submersible Pilot, Rig Engineer"},
+    {"name": "Himalayan Alpine Basecamp", "category": "expedition", "role_hint": "Expedition Leader, Mountain Guide, Meteorologist"},
 
-    # Historic Arts & Artisanal Craft
-    {"name": "Venetian Glassblowing Furnace", "category": "art_craft", "role_hint": "Master Glassblower, Furnace Keeper, Apprentice"},
-    {"name": "Stradivarius Violin Workshop", "category": "art_craft", "role_hint": "Master Luthier, Wood Varnisher, Curator"},
-    {"name": "Renaissance Clock Tower Gear Room", "category": "art_craft", "role_hint": "Horologist, Tower Keeper, Bellringer"},
-    {"name": "Ancient Manuscript Archives Vault", "category": "art_craft", "role_hint": "Head Archivist, Paper Conservator, Translator"},
-    {"name": "Historic Antique Mirror Atelier", "category": "art_craft", "role_hint": "Silvering Artisan, Frame Restorer, Valuer"},
-    {"name": "Broadway Theater Prop Wardrobe", "category": "art_craft", "role_hint": "Costume Designer, Stage Carpenter, Lighting Tech"},
-
-    # Luxury & High Society
-    {"name": "Monaco Formula Pit Garage", "category": "luxury", "role_hint": "Chief Mechanic, Tire Strategist, Telemetry Engineer"},
-    {"name": "Supersonic Private Jet Cabin", "category": "luxury", "role_hint": "Private Pilot, Flight Attendant, Co-Pilot"},
-    {"name": "High-Security Diamond Cutting Guild", "category": "luxury", "role_hint": "Master Gemologist, Laser Cutter, Vault Guard"},
-    {"name": "Michelin 3-Star Omakase Counter", "category": "luxury", "role_hint": "Head Chef, Sous Chef, Sake Sommelier"},
-    {"name": "Royal Thoroughbred Equestrian Stables", "category": "luxury", "role_hint": "Head Trainer, Equine Vet, Stable Hand"},
-    {"name": "Swiss Private Vault Sanctuary", "category": "luxury", "role_hint": "Bank Manager, Locksmith, Security Officer"},
-
-    # Quirky Urban & Everyday Mystery
-    {"name": "Vintage 1980s Neon Bowling Alley", "category": "urban", "role_hint": "Pinsetter Mechanic, Lane Attendant, Bartender"},
-    {"name": "24-Hour Industrial Laundromat", "category": "urban", "role_hint": "Night Attendant, Dry Cleaner, Delivery Driver"},
-    {"name": "Skyscraper Rooftop Honeybee Apiary", "category": "urban", "role_hint": "Urban Beekeeper, Building Engineer, Rooftop Gardener"},
-    {"name": "Underground Metro Central Signal Box", "category": "urban", "role_hint": "Train Dispatcher, Signal Tech, Track Inspector"},
-    {"name": "Harbor Lighthouse Lantern Room", "category": "urban", "role_hint": "Lighthouse Keeper, Harbor Pilot, Coast Guard"},
-    {"name": "Vintage Vinyl Record Pressing Plant", "category": "urban", "role_hint": "Mastering Engineer, Press Operator, QA Tester"}
+    # Urban Mystery & Everyday Settings
+    {"name": "Historic Grand Hotel Penthouse", "category": "urban", "role_hint": "Head Butler, Private Chef, Night Concierge"},
+    {"name": "24-Hour Industrial Laundromat", "category": "urban", "role_hint": "Night Attendant, Shift Cleaner, Delivery Driver"},
+    {"name": "Downtown Photography Darkroom Studio", "category": "urban", "role_hint": "Master Photographer, Darkroom Tech, Framing Assistant"},
+    {"name": "Vintage 1980s Neon Bowling Lounge", "category": "urban", "role_hint": "Pinsetter Mechanic, Lane Manager, Bartender"},
+    {"name": "Harbor Fog Horn Lighthouse", "category": "urban", "role_hint": "Lighthouse Keeper, Harbor Pilot, Radio Operator"}
 ]
 
 ATMOSPHERES_POOL = [
-    "Scorching Midday Sun at 42°C under an open sky",
-    "Dense Morning Fog at 06:00 AM with near-zero visibility",
-    "Heavy Torrential Rainstorm with lightning flashes",
-    "Quiet Mid-Afternoon with pale sunlight streaming through high windows",
-    "Crisp Winter Dawn with fresh morning frost at -15°C",
-    "Late Evening Twilight as darkness settles in",
-    "Sudden Midnight Blackout under dim emergency amber lighting",
-    "Roaring Windstorm rattling exterior windows",
-    "Sultry Humid Tropical Dusk before a sudden storm",
-    "Deep Chilly Night under an overcast moonless sky"
+    "Sudden midnight blackout under dim emergency amber lighting",
+    "Dense morning fog at 06:00 AM with freezing frost",
+    "Heavy torrential rainstorm rattling high windows",
+    "Late evening twilight as sunset fades to darkness",
+    "Crisp sub-zero winter midnight at -15°C with fresh snowfall",
+    "Scorching midday heatwave with blinding harsh sunlight"
 ]
 
+# Realistic, subtle everyday contradictions (NO childish or inverted physics)
 CONTRADICTIONS_POOL = [
-    # Thermodynamics & States of Matter
-    {"core": "Claiming dry ice blocks melted into a puddle of liquid water (dry ice sublimates directly into CO2 gas)", "categories": ["all"], "banned_words": ["dry ice"]},
-    {"core": "Claiming water boiled at 120°C on an open stove at high mountain altitude (water boils at lower temperature under lower atmospheric pressure)", "categories": ["expedition"], "banned_words": ["boil", "altitude"]},
-    {"core": "Claiming liquid candle wax froze solid instantaneously while touching an active blazing iron stove", "categories": ["art_craft", "urban", "expedition"], "banned_words": ["wax", "candle"]},
-    {"core": "Claiming warm smoke flowed downward toward the floor like liquid in still room air (warm smoke is buoyant and rises)", "categories": ["all"], "banned_words": ["smoke sink", "smoke flow"]},
+    # 1. Blackouts & Electrical Appliances
+    {
+        "core": "Claimed to read the digital oven clock or microwave display during a sudden power blackout",
+        "explanation": "Digital LED appliance clocks turn completely dark during a power blackout!",
+        "categories": ["urban", "arts_luxury", "tech_science"],
+        "banned_words": ["digital clock", "blackout clock"]
+    },
+    {
+        "core": "Claimed to brew coffee in the electric machine or fetch ice from the electric dispenser during the building's power outage",
+        "explanation": "Electric kitchen appliances and motorized ice dispensers do not function during an outage!",
+        "categories": ["urban", "arts_luxury", "tech_science"],
+        "banned_words": ["electric coffee", "blackout ice"]
+    },
 
-    # Optics, Light & Shadows
-    {"core": "Claiming their shadow pointed directly toward the primary spotlight instead of falling away", "categories": ["all"], "banned_words": ["shadow"]},
-    {"core": "Claiming to see a vivid colorful rainbow inside a windowless room or at night without direct sunlight and mist", "categories": ["all"], "banned_words": ["rainbow"]},
-    {"core": "Claiming to see clear reflections on a glass window while standing in pitch-black darkness outside", "categories": ["all"], "banned_words": ["reflection", "mirror"]},
-    {"core": "Claiming a sundial cast a sharp readable shadow during a dark torrential overcast rainstorm", "categories": ["expedition", "art_craft", "urban"], "banned_words": ["sundial"]},
+    # 2. Window Reflections vs Pitch Darkness
+    {
+        "core": "Claimed they stood inside a brightly lit room looking through a window and clearly saw someone moving in the pitch-black unlit yard",
+        "explanation": "Looking through glass from a brightly lit room into pitch darkness shows only interior reflections, not the dark outside!",
+        "categories": ["all"],
+        "banned_words": ["window dark", "reflection yard"]
+    },
 
-    # Chemistry, Materials & Physics
-    {"core": "Claiming to retrieve pure 24-karat solid gold using an ordinary magnetic retriever tool (pure gold is non-magnetic)", "categories": ["luxury", "art_craft", "urban", "expedition"], "banned_words": ["magnet", "gold"]},
-    {"core": "Claiming traditional oil varnish or oil paint dried rock-hard in 5 minutes (oil finishes require hours or days to cure)", "categories": ["art_craft", "luxury", "urban"], "banned_words": ["oil paint", "varnish"]},
-    {"core": "Claiming coarse table salt dissolved into a jar of pure vegetable oil (salt dissolves in polar water, not non-polar oil)", "categories": ["luxury", "expedition", "urban"], "banned_words": ["salt dissolve", "oil"]},
-    {"core": "Claiming freshly sliced apples remained pure snow-white after sitting 6 hours in open air (raw apple enzymes oxidize and turn brown)", "categories": ["all"], "banned_words": ["apple white", "oxidize"]},
-    {"core": "Claiming ordinary steel scissors cleanly cut a genuine raw diamond in half (diamonds are hardness 10 and cannot be cut by steel)", "categories": ["luxury", "art_craft", "urban"], "banned_words": ["cut diamond"]},
+    # 3. Sunlight Angles & Shadows
+    {
+        "core": "Claimed their shadow pointed towards the West while standing on the terrace during morning sunrise at 6:00 AM",
+        "explanation": "At sunrise the sun is in the East, so shadows always fall directly towards the West (away from the sun)!",
+        "categories": ["all"],
+        "banned_words": ["shadow sunrise"]
+    },
+    {
+        "core": "Claimed their shadow pointed towards the East while walking outside during evening sunset at 7:00 PM",
+        "explanation": "At sunset the sun is in the West, so shadows always point towards the East, away from the sun!",
+        "categories": ["all"],
+        "banned_words": ["shadow sunset"]
+    },
 
-    # Sound & Pressure
-    {"core": "Claiming to hear a faint whisper clearly over the deafening 100-decibel roar of operating heavy engines", "categories": ["luxury", "urban", "tech_space"], "banned_words": ["whisper", "engine"]},
-    {"core": "Claiming to hear vocal human cries traveling from open water through the sealed pressurized hull of a submerged submarine", "categories": ["tech_space"], "banned_words": ["hull scream", "submarine voice"]},
-    {"core": "Claiming to hear thunder rumble several seconds before seeing the lightning flash (light travels nearly a million times faster than sound)", "categories": ["all"], "banned_words": ["thunder before"]},
+    # 4. Fresh Weather, Snow, Heat & Footprints
+    {
+        "core": "Claimed they drove their car from 20 miles away and parked outside 5 minutes ago, but the car hood was covered in thick undisturbed frost",
+        "explanation": "An engine driven 20 miles stays hot and immediately melts hood frost!",
+        "categories": ["urban", "expedition"],
+        "banned_words": ["car frost", "engine snow"]
+    },
+    {
+        "core": "Claimed they ran across the open garden to check the shed during the midnight snowstorm, but the fresh snow showed zero footprints",
+        "explanation": "Walking across fresh snowfall leaves obvious visible footprints!",
+        "categories": ["expedition", "urban", "arts_luxury"],
+        "banned_words": ["snow footprint", "tracks"]
+    },
+    {
+        "core": "Claimed they were stranded outside in the heavy torrential downpour, but their jacket and hair were completely bone dry",
+        "explanation": "Walking in a heavy downpour immediately soaks fabric and hair!",
+        "categories": ["all"],
+        "banned_words": ["rain dry", "bone dry"]
+    },
 
-    # Biology & Environment
-    {"core": "Claiming honeybees were actively swarming and foraging outside during a torrential freezing downpour (bees stay inside hives during rain and cold)", "categories": ["urban", "expedition"], "banned_words": ["bees rain", "swarm"]},
-    {"core": "Claiming an ordinary open match burned bright inside a sealed airtight vacuum decompression chamber without oxygen", "categories": ["tech_space"], "banned_words": ["match vacuum", "candle vacuum"]}
+    # 5. Acoustic & Lightning Physics
+    {
+        "core": "Claimed they heard the thunder rumble several seconds before seeing the flash of lightning in the sky",
+        "explanation": "Light travels nearly a million times faster than sound, so lightning is ALWAYS seen before thunder!",
+        "categories": ["all"],
+        "banned_words": ["thunder before lightning"]
+    },
+
+    # 6. Thermal Shock & Chemistry Disguised Naturally
+    {
+        "core": "Claimed they washed a scorching red-hot glass beaker or baking dish directly under freezing cold tap water without cracking it",
+        "explanation": "Severe thermal shock immediately shatters scorching hot glass!",
+        "categories": ["arts_luxury", "tech_science", "urban"],
+        "banned_words": ["hot glass water", "thermal shock"]
+    },
+    {
+        "core": "Claimed to drink from a steaming hot mug of tea that had been sitting on the outdoor metal railing at -20°C for 30 minutes",
+        "explanation": "In sub-zero temperatures and wind, hot liquids cool down and freeze within minutes!",
+        "categories": ["expedition", "urban"],
+        "banned_words": ["steaming tea freezing"]
+    },
+
+    # 7. Professional Protocol & Cleanroom Rules
+    {
+        "core": "Claimed they opened the exterior window to air out the pressurized semiconductor cleanroom",
+        "explanation": "Cleanrooms are hermetically sealed positive-pressure chambers where opening windows is strictly impossible!",
+        "categories": ["tech_science"],
+        "banned_words": ["cleanroom window"]
+    },
+    {
+        "core": "Claimed they took a photo with flash inside the film development darkroom while photos were processing",
+        "explanation": "White flash light instantly ruins undeveloped photographic paper in a darkroom!",
+        "categories": ["urban"],
+        "banned_words": ["darkroom flash"]
+    }
 ]
 
 def load_history():
@@ -178,7 +223,6 @@ def check_is_duplicate(new_script: dict, history: list) -> tuple[bool, str]:
             return True, f"Title too similar to previous upload: '{h.get('title')}'"
 
     clean_new_topic = clean_topic_for_comparison(new_topic)
-    new_topic_words = extract_core_keywords(clean_new_topic)
 
     # Check topic names
     for h in history:
@@ -206,7 +250,7 @@ def check_is_duplicate(new_script: dict, history: list) -> tuple[bool, str]:
     return False, ""
 
 # ==============================================================================
-# STEP 1: GENERATE RIDDLE SCRIPT WITH STRICT DURATION CONSTRAINTS
+# STEP 1: GENERATOR (SUBTLE & BELIEVABLE EVERYDAY DETECTIVE RIDDLE)
 # ==============================================================================
 
 def generate_script_draft(history: list, chosen_setting: dict, chosen_atmosphere: str, chosen_contradiction: dict, target_culprit_idx: int) -> dict:
@@ -214,79 +258,73 @@ def generate_script_draft(history: list, chosen_setting: dict, chosen_atmosphere
     recent_topics_str = ", ".join(history_topics[-25:]) if history_topics else "None"
 
     system_prompt = f"""
-You are an award-winning YouTube Shorts detective mystery creator.
-Produce an ultra-crisp, 24-SECOND interactive detective riddle targeting global English audiences.
+You are an expert detective mystery creator for 24-second viral YouTube Shorts.
+Target audience: Smart global viewers who love clever, subtle crime mysteries.
 
-MANDATORY SPECIFICATIONS:
-1. SETTING: "{chosen_setting['name']}". Roles present: {chosen_setting.get('role_hint', 'Diverse staff')}.
-2. TIME & ATMOSPHERE: "{chosen_atmosphere}".
+MANDATORY CRIME RIDDLE SPECIFICATIONS:
+1. SETTING: "{chosen_setting['name']}". Characters: {chosen_setting.get('role_hint')}.
+2. SITUATION & TIME: "{chosen_atmosphere}".
 3. GUILTY CULPRIT: Suspect {target_culprit_idx} is the ONLY guilty person.
-   - Suspect {target_culprit_idx}'s alibi MUST contain a fatal flaw based on: "{chosen_contradiction['core']}".
-   - Suspect {target_culprit_idx}'s lie must feel natural to their role and setting.
+   - FATAL FLAW: Suspect {target_culprit_idx}'s alibi MUST hinge on this contradiction: "{chosen_contradiction['core']}".
+   - NATURAL HUMAN EXCUSE: Suspect {target_culprit_idx}'s lie MUST sound completely natural and innocent on the surface (e.g. checking an appliance, looking outside, walking across the yard, parking a car, working on equipment).
+   - STRICT BAN: Absolutely FORBIDDEN to use obvious textbook physics cliches (DO NOT say "smoke sank down", "stones sank in water", "ice melted", "whisper over loud machines"). The clue must feel like a real detective mystery!
    - The other two suspects MUST have airtight, realistic, and completely innocent alibis.
-4. STRICT LENGTH LIMITS (TARGET TOTAL WORDS: 52-60 words for 22-26s duration):
-   - Hook: EXACTLY 8 to 12 words setting up the crime scene.
-   - Suspect 1 alibi: EXACTLY 8 to 11 words.
-   - Suspect 2 alibi: EXACTLY 8 to 11 words.
-   - Suspect 3 alibi: EXACTLY 8 to 11 words.
-   - Challenge line: EXACTLY "One is lying. Spot the killer before time runs out! Three, two, one!" (13 words).
-   - Reveal explanation: EXACTLY 10 to 14 words. Starts with "It was the [Role]! [Crisp scientific reason]!"
-   TOTAL FULL_TEXT MUST BE STRICTLY UNDER 62 WORDS! FAST, PUNCHY, VIRAL!
-5. CASE-SPECIFIC TITLE: Must be unique, under 50 characters, specific to this case and setting.
-   Format examples: "Who Killed the Glacier Scientist? ❄️ #Shorts", "The Submarine Oxygen Sabotage 🌊 #Shorts", "The Antique Clockmaker's Fatal Lie 🕰️ #Shorts".
-   NEVER use generic titles like "Can You Solve This" or "Are You Smarter".
-6. VISUAL PROMPTS (5 SCENES): Must use cohesive art style: "{BASE_ART_STYLE}".
-   - scene_hook: Crime scene visual in {chosen_setting['name']}.
-   - scene_suspect_1: Suspect 1 performing their claimed action in setting.
-   - scene_suspect_2: Suspect 2 performing their claimed action in setting.
-   - scene_suspect_3: Suspect 3 performing their claimed action in setting.
-   - scene_reveal: Dramatic close-up of the contradiction evidence / moment of exposure.
 
-FORBIDDEN:
-- Do NOT use topics from past history: [{recent_topics_str}].
-- Do NOT use cliché tropes (e.g. ice cubes sinking, page 100-101 in book, stone sinks, whispering in loud machine).
+4. ULTRA-CRISP SCRIPT LENGTH (MANDATORY: 54 to 64 words total for 23-27s duration):
+   - Hook: EXACTLY 9 to 12 words setting up the murder.
+   - Suspect 1: EXACTLY 7 to 10 words stating their alibi naturally.
+   - Suspect 2: EXACTLY 7 to 10 words stating their alibi naturally.
+   - Suspect 3: EXACTLY 7 to 10 words stating their alibi naturally.
+   - Challenge line: EXACTLY "One is lying. Spot the killer before time runs out! Three, two, one!" (13 words).
+   - Reveal: EXACTLY 10 to 14 words explaining the fatal clue. Starts with "It was the [Role]! [Crisp explanation]!"
+   TOTAL WORD COUNT MUST BE STRICTLY UNDER 66 WORDS!
+
+5. CASE-SPECIFIC TITLE: Must be unique, under 50 characters, specific to this case and setting.
+   Format: "The [Setting] Murder Mystery 🔍 #Shorts" or "Who Killed the [Role]? 🕵️ #Shorts".
+
+6. VISUAL PROMPTS (5 SCENES): Cohesive art style: "{BASE_ART_STYLE}". No text in prompt.
 
 OUTPUT STRICT JSON ONLY:
 {{
-  "topic_name": "Unique Case Name (e.g. Glacier Core Sabotage)",
+  "topic_name": "Unique Case Name (e.g. Darkroom Cyanide Mystery)",
   "title": "Case-Specific Title Under 50 Chars #Shorts",
-  "description": "Can you spot the fatal lie in 10 seconds? Test your detective IQ!\\n\\n#Shorts #CrimeRiddle #Detective #Mystery #Puzzle",
+  "description": "Can you spot the fatal lie before the countdown ends? Comment your answer below!\\n\\n#Shorts #CrimeRiddle #Detective #Mystery #Puzzle",
   "setting_theme": "{chosen_setting['name']}",
   "contradiction_core": "{chosen_contradiction['core'][:60]}",
-  "full_text": "Complete spoken text from Hook through Reveal (55 to 65 words)",
+  "full_text": "Complete spoken text from Hook through Reveal (52 to 58 words)",
   "suspect_1": {{
-    "role": "ROLE 1 (e.g. THE MECHANIC)",
-    "title": "1. THE MECHANIC",
-    "alibi": "Exact spoken alibi sentence (max 14 words)",
-    "card_text": "Claim: Short 5-7 word summary matching spoken alibi.",
+    "role": "ROLE 1 (e.g. THE ARCHIVIST)",
+    "title": "1. THE ARCHIVIST",
+    "alibi": "Spoken alibi sentence (7 to 10 words)",
+    "card_text": "Claim: Short 5-7 word summary.",
     "speech_keyword": "unique single lowercase word present in full_text for suspect 1",
-    "image_prompt": "Visual prompt for suspect 1 with base art style"
+    "image_prompt": "Visual prompt for suspect 1, no text"
   }},
   "suspect_2": {{
-    "role": "ROLE 2 (e.g. THE PILOT)",
-    "title": "2. THE PILOT",
-    "alibi": "Exact spoken alibi sentence (max 14 words)",
-    "card_text": "Claim: Short 5-7 word summary matching spoken alibi.",
+    "role": "ROLE 2 (e.g. THE BOOKBINDER)",
+    "title": "2. THE BOOKBINDER",
+    "alibi": "Spoken alibi sentence (7 to 10 words)",
+    "card_text": "Claim: Short 5-7 word summary.",
     "speech_keyword": "unique single lowercase word present in full_text for suspect 2",
-    "image_prompt": "Visual prompt for suspect 2 with base art style"
+    "image_prompt": "Visual prompt for suspect 2, no text"
   }},
   "suspect_3": {{
-    "role": "ROLE 3 (e.g. THE COOK)",
-    "title": "3. THE COOK",
-    "alibi": "Exact spoken alibi sentence (max 14 words)",
-    "card_text": "Claim: Short 5-7 word summary matching spoken alibi.",
+    "role": "ROLE 3 (e.g. THE APPRENTICE)",
+    "title": "3. THE APPRENTICE",
+    "alibi": "Spoken alibi sentence (7 to 10 words)",
+    "card_text": "Claim: Short 5-7 word summary.",
     "speech_keyword": "unique single lowercase word present in full_text for suspect 3",
-    "image_prompt": "Visual prompt for suspect 3 with base art style"
+    "image_prompt": "Visual prompt for suspect 3, no text"
   }},
   "culprit_role": "ROLE OF SUSPECT {target_culprit_idx}",
   "culprit_speech_keyword": "speech_keyword of suspect {target_culprit_idx}",
-  "culprit_reason": "REASON: [CRISP UPPERCASE SCIENTIFIC CONTRADICTION]!",
+  "culprit_reason": "REASON: {chosen_contradiction['explanation'].upper()}",
   "scene_prompts": {{
-    "hook": "Visual prompt for hook crime scene with base art style",
-    "suspect_1": "Visual prompt for suspect 1",
-    "suspect_2": "Visual prompt for suspect 2",
-    "suspect_3": "Visual prompt for suspect 3",
-    "reveal": "Visual prompt for reveal evidence close-up"
+    "hook": "Visual prompt for crime scene in setting, no text",
+    "suspect_1": "Visual prompt for suspect 1 in setting, no text",
+    "suspect_2": "Visual prompt for suspect 2 in setting, no text",
+    "suspect_3": "Visual prompt for suspect 3 in setting, no text",
+    "reveal": "Visual prompt for evidence close-up in setting, no text"
   }}
 }}
 """
@@ -304,13 +342,14 @@ OUTPUT STRICT JSON ONLY:
     return json.loads(raw_text)
 
 # ==============================================================================
-# STEP 2: STRICT LOGIC CRITIC (INDEPENDENT GEMINI EVALUATION)
+# STEP 2: STRICT LOGIC & SUBTLETY CRITIC
 # ==============================================================================
 
 def evaluate_logic_with_gemini(script_data: dict) -> dict:
     """
     Independent Gemini evaluation step acting as a skeptical Senior Detective.
-    Rejects scientifically flawed, ambiguous, or multi-answer riddles.
+    Evaluates both Scientific Accuracy (1-10) and Subtlety/Naturalness (1-10).
+    Rejects childishly obvious clues or unnatural statements.
     """
     topic = script_data.get("topic_name", "")
     setting = script_data.get("setting_theme", "")
@@ -323,7 +362,8 @@ def evaluate_logic_with_gemini(script_data: dict) -> dict:
     word_count = len(full_text.split())
 
     critic_prompt = f"""
-You are a skeptical Senior Detective and Physics/Logic Critic evaluating a 30-second crime riddle.
+You are a skeptical Senior Detective and Riddle Quality Critic.
+Review this 24-second detective crime riddle.
 
 CASE UNDER REVIEW:
 - Topic: {topic}
@@ -333,21 +373,25 @@ CASE UNDER REVIEW:
 - Suspect 3 ({s3.get('role')}): "{s3.get('alibi')}"
 - Accused Culprit: {culprit_role}
 - Contradiction Reason: {reason}
-- Full Script: "{full_text}" (Total words: {word_count})
+- Full Script: "{full_text}" (Words: {word_count})
 
-STRICT CRITERIA:
-1. SCIENTIFIC & LOGICAL SOUNDNESS: Is the contradiction against natural laws/physics 100% indisputable?
-   - Reject ambiguous claims or factual errors (e.g. pages 100-101 facing error, water boiling rules, vacuum physics).
-2. UNIQUENESS OF GUILT: Is there EXACTLY ONE guilty suspect? Are the other 2 suspects completely plausible and innocent?
-3. SCRIPT TIGHTNESS: Is total word count between 52 and 70 words?
-4. QUALITY: Is it clever yet solvable in 10 seconds? (Reject trivial clichés like 'stones sink' or 'whispering over 10 engines').
+EVALUATION CRITERIA:
+1. SCIENTIFIC & LOGICAL ACCURACY (1-10): Is the contradiction 100% indisputable based on physics, weather, optics, or real facts?
+2. SUBTLETY & NATURALNESS (1-10): Does the culprit's statement sound like a natural, believable human excuse?
+   - REJECT (score < 7) if the clue is childishly obvious (e.g. stones sink, smoke sinks, whisper over 10 machines).
+   - REJECT (score < 7) if the suspect sounds like they deliberately recited an inverted textbook physics formula.
+   - The alibi MUST be disguised as a normal everyday action that subtly betrays the lie.
+3. UNIQUENESS OF GUILT: Is there EXACTLY ONE guilty suspect with 2 completely innocent suspects?
+4. SCRIPT DURATION TIGHTNESS: Is word count between 50 and 66 words (mandatory for 22-27s audio)?
 
 Return strict JSON:
 {{
   "valid": true/false,
-  "score": 1-10,
-  "critique": "Brief 1-sentence assessment of logic quality",
-  "refined_reason": "Refined 1-sentence uppercase contradiction reason (or keep existing if good)"
+  "accuracy_score": 1-10,
+  "subtlety_score": 1-10,
+  "overall_score": 1-10,
+  "critique": "Brief 1-sentence assessment of logic and subtlety",
+  "refined_reason": "Refined 1-sentence uppercase contradiction reason"
 }}
 """
 
@@ -366,11 +410,12 @@ Return strict JSON:
         return critic_result
     except Exception as e:
         print(f"⚠️ Logic Critic call warning: {e}. Falling back to rule-based validation.")
-        # Fallback rule-based validation
-        is_valid = (50 <= word_count <= 72) and bool(culprit_role) and bool(reason)
+        is_valid = (48 <= word_count <= 62) and bool(culprit_role) and bool(reason)
         return {
             "valid": is_valid,
-            "score": 8 if is_valid else 5,
+            "accuracy_score": 8 if is_valid else 5,
+            "subtlety_score": 8 if is_valid else 5,
+            "overall_score": 8 if is_valid else 5,
             "critique": "Rule-based validation passed.",
             "refined_reason": reason
         }
@@ -382,8 +427,8 @@ Return strict JSON:
 def generate_script_with_ai(history: list, max_attempts: int = 4) -> dict:
     """
     2-Step Gemini generation:
-    1. Generator creates riddle with strict duration & visual specs.
-    2. Strict Logic Critic verifies logic and uniqueness.
+    1. Generator creates riddle with strict duration & subtle everyday alibis.
+    2. Strict Logic Critic verifies accuracy (>=7) AND subtlety (>=7).
     """
     recent_history = history[-20:] if len(history) > 20 else history
     used_keywords = set()
@@ -417,7 +462,7 @@ def generate_script_with_ai(history: list, max_attempts: int = 4) -> dict:
         chosen_contradiction = random.choice(compatible_contradictions)
         target_culprit_idx = random.choice([1, 2, 3])
 
-        print(f"\n[BƯỚC 1/2: GENERATOR #{attempt}] Bối cảnh: '{chosen_setting['name']}' | Cơ chế: '{chosen_contradiction['core'][:45]}...'")
+        print(f"\n[BƯỚC 1/2: GENERATOR #{attempt}] Bối cảnh: '{chosen_setting['name']}' | Manh mối: '{chosen_contradiction['core'][:45]}...'")
 
         try:
             draft = generate_script_draft(history, chosen_setting, chosen_atmosphere, chosen_contradiction, target_culprit_idx)
@@ -428,45 +473,48 @@ def generate_script_with_ai(history: list, max_attempts: int = 4) -> dict:
                 print(f"⚠️ Trùng lặp lịch sử ({dup_reason}). Đổi bối cảnh...")
                 continue
 
-            # Check word count strictly for 22-28s total video duration
+            # Check word count strictly for 22-28s total video duration (50-68 words at +16% speed)
             word_count = len(draft.get("full_text", "").split())
-            if word_count < 48 or word_count > 64:
-                print(f"⚠️ Số từ không tối ưu ({word_count} từ, cần 50-62 từ để đạt thời lượng chuẩn 22-26s). Thử lại...")
+            if word_count < 50 or word_count > 68:
+                print(f"⚠️ Số từ không tối ưu ({word_count} từ, cần 52-66 từ để đạt chuẩn 22-27s). Thử lại...")
                 continue
 
-            # Ensure title length < 55 chars
+            # Ensure title length < 50 chars
             title = draft.get("title", "")
-            if len(title) > 55:
-                # Trim cleanly before #Shorts
-                short_title = re.sub(r'\s*#Shorts.*$', '', title)[:40].strip()
+            if len(title) > 50:
+                short_title = re.sub(r'\s*#Shorts.*$', '', title)[:38].strip()
                 draft["title"] = f"{short_title} #Shorts"
 
-            # Step 2: Strict Logic Critic
-            print(f"[BƯỚC 2/2: LOGIC CRITIC] Kiểm tra tính xác thực khoa học và tính độc nhất của lời giải...")
+            # Step 2: Strict Logic & Subtlety Critic
+            print(f"[BƯỚC 2/2: LOGIC & SUBTLETY CRITIC] Thẩm định độ chính xác và tính tự nhiên của lời khai...")
             critique = evaluate_logic_with_gemini(draft)
-            print(f"   -> Điểm Logic: {critique.get('score')}/10 | Đạt chuẩn: {critique.get('valid')} | Nhận xét: {critique.get('critique')}")
+            acc_score = critique.get("accuracy_score", critique.get("overall_score", 0))
+            sub_score = critique.get("subtlety_score", critique.get("overall_score", 0))
+            print(f"   -> Điểm Chính xác: {acc_score}/10 | Điểm Tinh tế: {sub_score}/10 | Duyệt: {critique.get('valid')}")
+            print(f"   -> Đánh giá: {critique.get('critique')}")
 
-            if not critique.get("valid") or critique.get("score", 0) < 7:
-                print(f"⚠️ Kịch bản bị Logic Critic từ chối ({critique.get('critique')}). Tạo lại kịch bản mới...")
+            # Reject if inaccurate, obvious, or invalid
+            if not critique.get("valid") or acc_score < 7 or sub_score < 7:
+                print(f"⚠️ Kịch bản bị từ chối do quá lộ liễu hoặc thiếu chặt chẽ ({critique.get('critique')}). Tạo lại kịch bản mới...")
                 continue
 
             if critique.get("refined_reason"):
                 draft["culprit_reason"] = critique["refined_reason"]
 
-            draft["logic_score"] = critique.get("score", 8)
+            draft["logic_score"] = critique.get("overall_score", 8)
             draft["logic_critique"] = critique.get("critique", "Approved")
 
-            # Validate scene prompts exist
+            # Validate scene prompts exist without text
             if "scene_prompts" not in draft or not all(k in draft["scene_prompts"] for k in ["hook", "suspect_1", "suspect_2", "suspect_3", "reveal"]):
                 draft["scene_prompts"] = {
-                    "hook": f"Crime scene at {chosen_setting['name']}, victim found, {BASE_ART_STYLE}",
+                    "hook": f"Crime scene at {chosen_setting['name']}, mysterious atmosphere, {BASE_ART_STYLE}",
                     "suspect_1": f"{draft['suspect_1'].get('role')} at {chosen_setting['name']}, {BASE_ART_STYLE}",
                     "suspect_2": f"{draft['suspect_2'].get('role')} at {chosen_setting['name']}, {BASE_ART_STYLE}",
                     "suspect_3": f"{draft['suspect_3'].get('role')} at {chosen_setting['name']}, {BASE_ART_STYLE}",
-                    "reveal": f"Close-up evidence showing contradiction at {chosen_setting['name']}, {BASE_ART_STYLE}"
+                    "reveal": f"Close-up of evidence flaw at {chosen_setting['name']}, {BASE_ART_STYLE}"
                 }
 
-            print(f"✅ Kịch bản xuất sắc được phê duyệt: '{draft.get('topic_name')}' | Tiêu đề: '{draft.get('title')}'")
+            print(f"✅ Kịch bản sắc sảo đã được duyệt: '{draft.get('topic_name')}' | Tiêu đề: '{draft.get('title')}'")
             return draft
 
         except Exception as e:
@@ -480,7 +528,7 @@ def generate_script():
 
     if GEMINI_API_KEY:
         try:
-            print("Đang khởi động Quy trình 2 bước (Generator + Strict Logic Critic)...")
+            print("Đang khởi động Quy trình 2 bước (Generator + Strict Logic & Subtlety Critic)...")
             script_data = generate_script_with_ai(history)
 
             # Map into standard pipeline structure
