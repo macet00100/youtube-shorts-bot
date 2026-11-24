@@ -15,134 +15,123 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 
 from config import GEMINI_API_KEY, HISTORY_FILE
 
-GEMINI_MODEL = "gemini-3.5-flash-lite"
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+GEMINI_MODELS = ["gemini-3.5-flash-lite", "gemini-3.5-flash"]
+
+def call_gemini_api(payload: dict, timeout: int = 35) -> dict:
+    """Calls Gemini API with automatic model fallback and retry on 503/429."""
+    last_err = None
+    for model in GEMINI_MODELS:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+        for attempt in range(2):
+            try:
+                resp = requests.post(url, json=payload, timeout=timeout)
+                if resp.status_code == 200:
+                    return resp.json()
+                elif resp.status_code in [503, 429, 500]:
+                    import time
+                    time.sleep(1.5)
+                    continue
+                else:
+                    resp.raise_for_status()
+            except Exception as e:
+                last_err = e
+                import time
+                time.sleep(1.0)
+    raise RuntimeError(f"All Gemini models failed: {last_err}")
+
+# Unified Art Style applied across all scenes for visual consistency
+BASE_ART_STYLE = (
+    "moody noir detective comic illustration, dark cinematic graphic novel art style, "
+    "dramatic rim lighting, high contrast shadows, detailed textures, 9:16 vertical composition"
+)
 
 # ==============================================================================
-# PROCEDURAL DIMENSION MATRIX (COMBINATORIAL EXPLOSION FOR ZERO REPETITION)
+# PROCEDURAL DIMENSION MATRIX
 # ==============================================================================
 
 SETTINGS_POOL = [
     # High-Tech & Space
-    {"name": "Mars Habitat Bio-Dome", "category": "tech_space", "search": "mars planet surface space"},
-    {"name": "Deep-Sea Submarine Research Laboratory", "category": "tech_space", "search": "submarine underwater lab"},
-    {"name": "Cryogenic Quantum Server Vault", "category": "tech_space", "search": "server room technology blue"},
-    {"name": "Cleanroom Semiconductor Foundry", "category": "tech_space", "search": "cleanroom science laboratory"},
-    {"name": "Automated Drone Hangar", "category": "tech_space", "search": "drone technology futuristic"},
-    {"name": "Subterranean Particle Accelerator", "category": "tech_space", "search": "particle accelerator science tunnel"},
-    {"name": "International Space Station Cupola", "category": "tech_space", "search": "space station earth view orbit"},
+    {"name": "Mars Habitat Bio-Dome", "category": "tech_space", "role_hint": "Commander, Astrobiologist, System Engineer"},
+    {"name": "Deep-Sea Submarine Laboratory", "category": "tech_space", "role_hint": "Captain, Sonar Tech, Marine Biologist"},
+    {"name": "Cryogenic Quantum Server Vault", "category": "tech_space", "role_hint": "Data Architect, Cryo Engineer, Security Lead"},
+    {"name": "Cleanroom Semiconductor Foundry", "category": "tech_space", "role_hint": "Laser Tech, Chemist, Quality Inspector"},
+    {"name": "Subterranean Particle Accelerator", "category": "tech_space", "role_hint": "Physicist, Magnet Engineer, Radiation Officer"},
+    {"name": "Orbital Space Station Cupola", "category": "tech_space", "role_hint": "Flight Engineer, Payload Specialist, Pilot"},
 
     # Wild Nature & Extreme Expeditions
-    {"name": "Sahara Desert Archaeological Excavation", "category": "expedition", "search": "desert archaeology excavation ruins"},
-    {"name": "Himalayan High-Altitude Alpine Basecamp", "category": "expedition", "search": "snow mountain tent basecamp"},
-    {"name": "Amazon River Rainforest Canopy Research Station", "category": "expedition", "search": "rainforest river research canopy"},
-    {"name": "Active Volcano Caldera Monitoring Station", "category": "expedition", "search": "volcano lava smoke mountain"},
-    {"name": "Subterranean Giant Crystal Cavern", "category": "expedition", "search": "crystal cave underground limestone"},
-    {"name": "Arctic Glaciology Ice Core Drilling Camp", "category": "expedition", "search": "arctic ice snow polar blizzard"},
-    {"name": "Deep Ocean Geothermal Vent Rig", "category": "expedition", "search": "ocean oil rig deep sea water"},
+    {"name": "Sahara Desert Archaeological Dig", "category": "expedition", "role_hint": "Archaeologist, Cartographer, Drone Operator"},
+    {"name": "Himalayan High-Altitude Basecamp", "category": "expedition", "role_hint": "Expedition Leader, Sherpa Guide, Meteorologist"},
+    {"name": "Amazon Canopy Research Station", "category": "expedition", "role_hint": "Botanist, Entomologist, Field Medic"},
+    {"name": "Active Volcano Caldera Lab", "category": "expedition", "role_hint": "Volcanologist, Seismologist, Thermal Tech"},
+    {"name": "Arctic Ice Core Drilling Camp", "category": "expedition", "role_hint": "Glaciologist, Drill Mechanic, Camp Cook"},
+    {"name": "Deep Ocean Geothermal Vent Rig", "category": "expedition", "role_hint": "Geochemist, Submersible Pilot, Rig Engineer"},
 
     # Historic Arts & Artisanal Craft
-    {"name": "Venetian Glassblowing Furnace Atelier", "category": "art_craft", "search": "glassblowing workshop fire artisan"},
-    {"name": "Stradivarius Acoustic Violin Workshop", "category": "art_craft", "search": "violin craft wood workshop"},
-    {"name": "Renaissance Clock Tower Gear Room", "category": "art_craft", "search": "clock tower gears antique"},
-    {"name": "Vatican Ancient Secret Manuscript Vault", "category": "art_craft", "search": "ancient library books scroll"},
-    {"name": "Historic Antique Mirror Restoration Atelier", "category": "art_craft", "search": "mirror reflection vintage room"},
-    {"name": "Broadway Theater Backstage Costume Wardrobe", "category": "art_craft", "search": "theater stage backstage curtains"},
-    {"name": "Royal Tapestry Weaving Guild Studio", "category": "art_craft", "search": "weaving loom fabric tapestry"},
+    {"name": "Venetian Glassblowing Furnace", "category": "art_craft", "role_hint": "Master Glassblower, Furnace Keeper, Apprentice"},
+    {"name": "Stradivarius Violin Workshop", "category": "art_craft", "role_hint": "Master Luthier, Wood Varnisher, Curator"},
+    {"name": "Renaissance Clock Tower Gear Room", "category": "art_craft", "role_hint": "Horologist, Tower Keeper, Bellringer"},
+    {"name": "Ancient Manuscript Archives Vault", "category": "art_craft", "role_hint": "Head Archivist, Paper Conservator, Translator"},
+    {"name": "Historic Antique Mirror Atelier", "category": "art_craft", "role_hint": "Silvering Artisan, Frame Restorer, Valuer"},
+    {"name": "Broadway Theater Prop Wardrobe", "category": "art_craft", "role_hint": "Costume Designer, Stage Carpenter, Lighting Tech"},
 
     # Luxury & High Society
-    {"name": "Monaco Formula Racing Pit Garage", "category": "luxury", "search": "formula racing car garage pit"},
-    {"name": "Supersonic Private Jet Cruising Cabin", "category": "luxury", "search": "private jet airplane flying luxury"},
-    {"name": "High-Security Diamond Cutting Guild", "category": "luxury", "search": "diamond jewelry vault sparkle"},
-    {"name": "Michelin 3-Star Sushi Omakase Counter", "category": "luxury", "search": "sushi chef restaurant counter"},
-    {"name": "Royal Thoroughbred Equestrian Stables", "category": "luxury", "search": "horse stable equestrian luxury"},
-    {"name": "High-Rise Penthouse Rooftop Infinity Pool", "category": "luxury", "search": "rooftop infinity pool city night"},
-    {"name": "Swiss Private Vault Safety Deposit Sanctuary", "category": "luxury", "search": "bank vault gold safety deposit"},
+    {"name": "Monaco Formula Pit Garage", "category": "luxury", "role_hint": "Chief Mechanic, Tire Strategist, Telemetry Engineer"},
+    {"name": "Supersonic Private Jet Cabin", "category": "luxury", "role_hint": "Private Pilot, Flight Attendant, Co-Pilot"},
+    {"name": "High-Security Diamond Cutting Guild", "category": "luxury", "role_hint": "Master Gemologist, Laser Cutter, Vault Guard"},
+    {"name": "Michelin 3-Star Omakase Counter", "category": "luxury", "role_hint": "Head Chef, Sous Chef, Sake Sommelier"},
+    {"name": "Royal Thoroughbred Equestrian Stables", "category": "luxury", "role_hint": "Head Trainer, Equine Vet, Stable Hand"},
+    {"name": "Swiss Private Vault Sanctuary", "category": "luxury", "role_hint": "Bank Manager, Locksmith, Security Officer"},
 
     # Quirky Urban & Everyday Mystery
-    {"name": "Vintage 1980s Neon Bowling Alley", "category": "urban", "search": "bowling alley neon lights retro"},
-    {"name": "24-Hour Industrial Laundromat", "category": "urban", "search": "laundromat washing machines night"},
-    {"name": "Skyscraper Rooftop Honeybee Apiary", "category": "urban", "search": "honey bees beehive rooftop"},
-    {"name": "Underground Metro Central Signal Box", "category": "urban", "search": "subway tunnel train dispatch"},
-    {"name": "Harbor Fog Horn Lighthouse Lantern Room", "category": "urban", "search": "lighthouse sea waves fog"},
-    {"name": "Vintage Vinyl Mastering and Pressing Plant", "category": "urban", "search": "vinyl record turntable music"},
-    {"name": "Neon Glass Tube Sign Workshop", "category": "urban", "search": "neon lights glass glowing gas"}
+    {"name": "Vintage 1980s Neon Bowling Alley", "category": "urban", "role_hint": "Pinsetter Mechanic, Lane Attendant, Bartender"},
+    {"name": "24-Hour Industrial Laundromat", "category": "urban", "role_hint": "Night Attendant, Dry Cleaner, Delivery Driver"},
+    {"name": "Skyscraper Rooftop Honeybee Apiary", "category": "urban", "role_hint": "Urban Beekeeper, Building Engineer, Rooftop Gardener"},
+    {"name": "Underground Metro Central Signal Box", "category": "urban", "role_hint": "Train Dispatcher, Signal Tech, Track Inspector"},
+    {"name": "Harbor Lighthouse Lantern Room", "category": "urban", "role_hint": "Lighthouse Keeper, Harbor Pilot, Coast Guard"},
+    {"name": "Vintage Vinyl Record Pressing Plant", "category": "urban", "role_hint": "Mastering Engineer, Press Operator, QA Tester"}
 ]
 
 ATMOSPHERES_POOL = [
     "Scorching Midday Sun at 42°C under an open sky",
     "Dense Morning Fog at 06:00 AM with near-zero visibility",
-    "Heavy Torrential Rainstorm with thunderous lightning flashes",
+    "Heavy Torrential Rainstorm with lightning flashes",
     "Quiet Mid-Afternoon with pale sunlight streaming through high windows",
-    "Crisp Winter Dawn with a fresh dusting of morning frost",
+    "Crisp Winter Dawn with fresh morning frost at -15°C",
     "Late Evening Twilight as darkness settles in",
     "Sudden Midnight Blackout under dim emergency amber lighting",
-    "Roaring Windstorm rattling the building's exterior windows",
-    "Sultry Humid Tropical Dusk before a sudden monsoonal storm",
-    "Eerie Pre-Dawn Stillness right before the sunrise",
-    "Blinding Noon Sunlight reflecting intensely off polished surfaces",
+    "Roaring Windstorm rattling exterior windows",
+    "Sultry Humid Tropical Dusk before a sudden storm",
     "Deep Chilly Night under an overcast moonless sky"
 ]
 
 CONTRADICTIONS_POOL = [
-    # Universal Optics & Shadows
-    {"core": "Shadow pointing towards the primary light source instead of falling directly away", "categories": ["all"], "banned_words": ["shadow", "spotlight"]},
-    {"core": "Claiming to see a vivid colorful rainbow inside a dry indoor room or at night without direct sunlight and water mist", "categories": ["all"], "banned_words": ["rainbow"]},
-    {"core": "Claiming to see clear reflections in plain transparent window glass while standing inside a pitch-black room", "categories": ["all"], "banned_words": ["reflection", "mirror"]},
-    
-    # Universal Thermodynamics & Physics
-    {"core": "Claiming ice cubes sank to the bottom of a glass of pure water (ice is less dense and always floats)", "categories": ["all"], "banned_words": ["ice float", "sink"]},
-    {"core": "Claiming dry ice blocks melted into a deep puddle of liquid water (dry ice sublimates directly into carbon dioxide gas)", "categories": ["all"], "banned_words": ["dry ice", "sublimate"]},
-    {"core": "Claiming glowing cherry-red metal was touched barehanded without causing severe third-degree burns", "categories": ["art_craft", "luxury", "tech_space", "urban"], "banned_words": ["glowing metal", "brake disc", "furnace"]},
-    {"core": "Claiming warm smoke fell straight downwards to the floor like liquid in still room air (warm smoke is buoyant and rises)", "categories": ["all"], "banned_words": ["smoke sink", "smoke fall"]},
+    # Thermodynamics & States of Matter
+    {"core": "Claiming dry ice blocks melted into a puddle of liquid water (dry ice sublimates directly into CO2 gas)", "categories": ["all"], "banned_words": ["dry ice"]},
+    {"core": "Claiming water boiled at 120°C on an open stove at high mountain altitude (water boils at lower temperature under lower atmospheric pressure)", "categories": ["expedition"], "banned_words": ["boil", "altitude"]},
+    {"core": "Claiming liquid candle wax froze solid instantaneously while touching an active blazing iron stove", "categories": ["art_craft", "urban", "expedition"], "banned_words": ["wax", "candle"]},
+    {"core": "Claiming warm smoke flowed downward toward the floor like liquid in still room air (warm smoke is buoyant and rises)", "categories": ["all"], "banned_words": ["smoke sink", "smoke flow"]},
 
-    # Universal Chemistry & Materials
-    {"core": "Claiming to retrieve pure 24-karat solid gold using an ordinary magnetic tool (pure gold is non-magnetic)", "categories": ["luxury", "art_craft", "urban", "expedition"], "banned_words": ["magnet", "gold"]},
-    {"core": "Claiming traditional oil varnish or oil paint dried completely hard in 5 minutes (oil finishes take days to cure)", "categories": ["art_craft", "luxury", "urban"], "banned_words": ["oil paint", "varnish"]},
-    {"core": "Claiming coarse table salt dissolved into a container of pure vegetable cooking oil (salt dissolves in polar water, not non-polar oil)", "categories": ["luxury", "expedition", "urban"], "banned_words": ["salt dissolve", "oil"]},
-    {"core": "Claiming sliced fresh apples remained crisp and pure snow-white after sitting for 8 hours in open air (apples oxidize and turn brown)", "categories": ["all"], "banned_words": ["apple brown", "oxidize"]},
-    {"core": "Claiming steel scissors easily cut a real natural raw diamond in half (diamonds are the hardest natural mineral and cannot be cut by steel)", "categories": ["luxury", "art_craft", "urban"], "banned_words": ["cut diamond", "scissors"]},
+    # Optics, Light & Shadows
+    {"core": "Claiming their shadow pointed directly toward the primary spotlight instead of falling away", "categories": ["all"], "banned_words": ["shadow"]},
+    {"core": "Claiming to see a vivid colorful rainbow inside a windowless room or at night without direct sunlight and mist", "categories": ["all"], "banned_words": ["rainbow"]},
+    {"core": "Claiming to see clear reflections on a glass window while standing in pitch-black darkness outside", "categories": ["all"], "banned_words": ["reflection", "mirror"]},
+    {"core": "Claiming a sundial cast a sharp readable shadow during a dark torrential overcast rainstorm", "categories": ["expedition", "art_craft", "urban"], "banned_words": ["sundial"]},
 
-    # Universal Clocks, Calendars & Logic
-    {"core": "Claiming an official business transaction occurred on the fictitious calendar date of February 30th", "categories": ["all"], "banned_words": ["february 30", "calendar"]},
-    {"core": "Claiming to read a secret note placed between facing book pages 100 and 101 (in bound books, consecutive even and odd pages are opposite sides of one sheet)", "categories": ["art_craft", "luxury", "tech_space", "urban"], "banned_words": ["page 100", "pages 100 and 101"]},
-    {"core": "Claiming a sundial cast a sharp readable shadow on a roof during an overcast thunderstorm", "categories": ["expedition", "art_craft", "urban"], "banned_words": ["sundial"]},
+    # Chemistry, Materials & Physics
+    {"core": "Claiming to retrieve pure 24-karat solid gold using an ordinary magnetic retriever tool (pure gold is non-magnetic)", "categories": ["luxury", "art_craft", "urban", "expedition"], "banned_words": ["magnet", "gold"]},
+    {"core": "Claiming traditional oil varnish or oil paint dried rock-hard in 5 minutes (oil finishes require hours or days to cure)", "categories": ["art_craft", "luxury", "urban"], "banned_words": ["oil paint", "varnish"]},
+    {"core": "Claiming coarse table salt dissolved into a jar of pure vegetable oil (salt dissolves in polar water, not non-polar oil)", "categories": ["luxury", "expedition", "urban"], "banned_words": ["salt dissolve", "oil"]},
+    {"core": "Claiming freshly sliced apples remained pure snow-white after sitting 6 hours in open air (raw apple enzymes oxidize and turn brown)", "categories": ["all"], "banned_words": ["apple white", "oxidize"]},
+    {"core": "Claiming ordinary steel scissors cleanly cut a genuine raw diamond in half (diamonds are hardness 10 and cannot be cut by steel)", "categories": ["luxury", "art_craft", "urban"], "banned_words": ["cut diamond"]},
 
-    # Universal Sound & Acoustics
-    {"core": "Claiming to hear a loud vocal echo across flat open sand dunes or open water without vertical reflective surfaces", "categories": ["expedition", "luxury", "tech_space"], "banned_words": ["echo", "sand"]},
-    {"core": "Claiming to hear thunder rumble several seconds before seeing the lightning flash strike (light travels 1 million times faster than sound)", "categories": ["all"], "banned_words": ["thunder", "lightning"]},
-    {"core": "Claiming to hear a quiet whisper clearly over the roaring deafening decibels of an active engine or machinery", "categories": ["luxury", "urban", "tech_space"], "banned_words": ["whisper", "engine"]},
+    # Sound & Pressure
+    {"core": "Claiming to hear a faint whisper clearly over the deafening 100-decibel roar of operating heavy engines", "categories": ["luxury", "urban", "tech_space"], "banned_words": ["whisper", "engine"]},
+    {"core": "Claiming to hear vocal human cries traveling from open water through the sealed pressurized hull of a submerged submarine", "categories": ["tech_space"], "banned_words": ["hull scream", "submarine voice"]},
+    {"core": "Claiming to hear thunder rumble several seconds before seeing the lightning flash (light travels nearly a million times faster than sound)", "categories": ["all"], "banned_words": ["thunder before"]},
 
-    # Setting-Specific Principles
-    {"core": "Claiming a candle was burning inside a sealed airless vacuum chamber without oxygen", "categories": ["tech_space"], "banned_words": ["candle", "vacuum", "oxygen"]},
-    {"core": "Claiming to sweat from excessive heat inside a cryogenic sub-zero server vault or refrigerated room", "categories": ["tech_space", "luxury", "urban"], "banned_words": ["sweat", "server room", "refrigerator"]},
-    {"core": "Claiming water boiled at over 120°C on an open camp stove at high mountain altitude (water boils at lower temperature at high altitude)", "categories": ["expedition"], "banned_words": ["boil", "altitude"]},
-    {"core": "Claiming to hear human voices or cries traveling through an exterior pressurized submarine hull underwater", "categories": ["tech_space"], "banned_words": ["hull", "submarine voice"]},
-    {"core": "Claiming an express train overtook another train while traveling on a single one-way track", "categories": ["urban"], "banned_words": ["overtake", "single track"]},
-    {"core": "Claiming honeybees were actively flying and swarming outside during a heavy torrential rainstorm (bees stay inside hives during rain)", "categories": ["urban", "expedition"], "banned_words": ["bees rain", "swarm"]}
-]
-
-VIRAL_TITLES_POOL = [
-    "Can You Spot The Liar In 10 Seconds? 🕵️‍♂️ #Shorts",
-    "Only 5% Of Detectives Solve This Riddle! 🔍 #Shorts",
-    "Spot The Single Lie Before The Timer Ends! ⏳ #Shorts",
-    "Only A True Detective Catches The Flaw! 🚨 #Shorts",
-    "99% Miss The Clue! Who Murdered The Victim? #Shorts",
-    "Detective IQ Test: Can You Catch The Killer? 🧠 #Shorts",
-    "Can You Spot The Impossible Lie? 🧐 #Shorts",
-    "FBI Riddle: Spot The Killer Before Time Out! ⏱️ #Shorts",
-    "One Suspect Made A Fatal Mistake! Can You Spot It? #Shorts",
-    "Detective Challenge: Who Is The Killer? 🕵️ #Shorts",
-    "95% Fail! Spot The Lie In 5 Seconds! 😱 #Shorts",
-    "Can You Solve This Impossible Crime? 🔍 #Shorts",
-    "Only Geniuses Catch The Clue! #Shorts",
-    "The Detective Solved It In 5 Seconds! Can You? #Shorts",
-    "Spot The Killer Before The Red Stamp Appears! 🛑 #Shorts",
-    "Can You Catch The Liar Before The Countdown Ends? ⏳ #Shorts",
-    "Are You Smarter Than 95% Of Detectives? 🕵️ #Shorts",
-    "Spot The Flaw In Under 10 Seconds! 🔍 #Shorts",
-    "The Killer Left One Massive Clue! Did You See It? #Shorts",
-    "A Deadly Mystery: Who Is The Killer? 🩸 #Shorts"
+    # Biology & Environment
+    {"core": "Claiming honeybees were actively swarming and foraging outside during a torrential freezing downpour (bees stay inside hives during rain and cold)", "categories": ["urban", "expedition"], "banned_words": ["bees rain", "swarm"]},
+    {"core": "Claiming an ordinary open match burned bright inside a sealed airtight vacuum decompression chamber without oxygen", "categories": ["tech_space"], "banned_words": ["match vacuum", "candle vacuum"]}
 ]
 
 def load_history():
@@ -160,7 +149,6 @@ def save_history(history):
         json.dump(history, f, ensure_ascii=False, indent=2)
 
 def extract_core_keywords(text: str) -> set:
-    """Extracts lowercase words of length >= 4, filtering common stopwords."""
     stopwords = {
         "this", "that", "with", "from", "were", "been", "have", "what", "when", "where",
         "which", "there", "their", "about", "would", "could", "should", "murder", "mystery",
@@ -170,93 +158,233 @@ def extract_core_keywords(text: str) -> set:
     return {w for w in words if w not in stopwords}
 
 def clean_topic_for_comparison(text: str) -> str:
-    """Removes generic boilerplate stopwords to ensure high-accuracy semantic comparison."""
     stopwords_pattern = r'\b(murder|mystery|crime|riddle|shorts|the|and|of|in|at|on|for|case|solved)\b'
     cleaned = re.sub(stopwords_pattern, '', text.lower())
     return re.sub(r'\s+', ' ', cleaned).strip()
 
 def check_is_duplicate(new_script: dict, history: list) -> tuple[bool, str]:
-    """
-    Strict fuzzy and semantic check against all past history entries.
-    Rejects any script that duplicates setting, contradiction, or wording.
-    """
+    """Strict check against history to prevent topic, setting, title, or contradiction repetition."""
     if not history:
         return False, ""
 
     new_topic = new_script.get("topic_name", "").strip()
+    new_title = new_script.get("title", "").strip().lower()
     new_reason = new_script.get("culprit_reason", "").strip().upper()
-    new_full = new_script.get("full_text", "").strip()
-    
-    # 1. Reject cliché naming pattern "Midnight Grand ..."
-    if new_topic.lower().startswith("midnight grand"):
-        return True, "Banned cliché naming pattern 'Midnight Grand...'"
+
+    # Reject duplicate titles
+    for h in history:
+        past_title = h.get("title", "").strip().lower()
+        if past_title and (new_title == past_title or difflib.SequenceMatcher(None, new_title, past_title).ratio() > 0.85):
+            return True, f"Title too similar to previous upload: '{h.get('title')}'"
 
     clean_new_topic = clean_topic_for_comparison(new_topic)
     new_topic_words = extract_core_keywords(clean_new_topic)
 
-    # 2. Check each historical entry
-    # Check exact topic match against all history to ensure 100% unique names
+    # Check topic names
     for h in history:
         past_topic = h.get("topic_name", "").strip()
         clean_past_topic = clean_topic_for_comparison(past_topic)
         if new_topic.lower() == past_topic.lower() or (clean_new_topic and clean_new_topic == clean_past_topic):
-            return True, f"Exact topic name match with history: '{past_topic}'"
+            return True, f"Exact topic match with history: '{past_topic}'"
 
-    # Check fuzzy similarity & contradiction collision only against the recent 20 videos (sliding window)
+    # Check recent 20 videos
     recent_history = history[-20:] if len(history) > 20 else history
     for h in recent_history:
         past_topic = h.get("topic_name", "").strip()
         past_reason = h.get("culprit_reason", "").strip().upper()
         clean_past_topic = clean_topic_for_comparison(past_topic)
 
-        # Check B: High SequenceMatcher topic similarity on cleaned text
         sim_topic = difflib.SequenceMatcher(None, clean_new_topic, clean_past_topic).ratio()
         if sim_topic > 0.65:
-            return True, f"Topic similarity too high ({sim_topic:.2f}) with recent topic: '{past_topic}'"
+            return True, f"Topic similarity too high ({sim_topic:.2f}) with recent: '{past_topic}'"
 
-        # Check C: Core setting keyword collision within recent window
-        past_topic_words = extract_core_keywords(clean_past_topic)
-        overlap = new_topic_words.intersection(past_topic_words)
-        if overlap:
-            distinctive_setting_words = {
-                "greenhouse", "bakery", "lighthouse", "hotel", "chalet", "observatory",
-                "planetarium", "museum", "casino", "aquarium", "winery", "library",
-                "subway", "train", "submarine", "lounge", "suite", "manor"
-            }
-            colliding = overlap.intersection(distinctive_setting_words)
-            if colliding:
-                return True, f"Topic shares distinctive setting keyword {colliding} with recent topic: '{past_topic}'"
-
-        # Check D: Reason keyword collision within recent window
         if past_reason and new_reason:
             sim_reason = difflib.SequenceMatcher(None, new_reason, past_reason).ratio()
             if sim_reason > 0.70:
-                return True, f"Culprit contradiction reason similarity too high ({sim_reason:.2f}) with recent: '{past_reason}'"
-
-    # 3. Explicitly ban ancient repetitive tropes
-    banned_tropes = [
-        "sunbathe", "sunbathing",
-        "watering orchid", "watering roses", "watering flower",
-        "coffee freeze", "coffee freezing",
-        "checking ticket in pitch black", "darkness without any light",
-        "mail delivery on sunday", "no mail delivery on sunday"
-    ]
-    combined_content = f"{new_topic} {new_reason} {new_full}".lower()
-    for trope in banned_tropes:
-        if trope in combined_content:
-            return True, f"Contains banned cliché trope: '{trope}'"
+                return True, f"Contradiction reason similarity too high ({sim_reason:.2f}) with recent: '{past_reason}'"
 
     return False, ""
 
+# ==============================================================================
+# STEP 1: GENERATE RIDDLE SCRIPT WITH STRICT DURATION CONSTRAINTS
+# ==============================================================================
+
+def generate_script_draft(history: list, chosen_setting: dict, chosen_atmosphere: str, chosen_contradiction: dict, target_culprit_idx: int) -> dict:
+    history_topics = [h.get("topic_name", "") for h in history if h.get("topic_name")]
+    recent_topics_str = ", ".join(history_topics[-25:]) if history_topics else "None"
+
+    system_prompt = f"""
+You are an award-winning YouTube Shorts detective mystery creator.
+Produce an ultra-crisp, 24-SECOND interactive detective riddle targeting global English audiences.
+
+MANDATORY SPECIFICATIONS:
+1. SETTING: "{chosen_setting['name']}". Roles present: {chosen_setting.get('role_hint', 'Diverse staff')}.
+2. TIME & ATMOSPHERE: "{chosen_atmosphere}".
+3. GUILTY CULPRIT: Suspect {target_culprit_idx} is the ONLY guilty person.
+   - Suspect {target_culprit_idx}'s alibi MUST contain a fatal flaw based on: "{chosen_contradiction['core']}".
+   - Suspect {target_culprit_idx}'s lie must feel natural to their role and setting.
+   - The other two suspects MUST have airtight, realistic, and completely innocent alibis.
+4. STRICT LENGTH LIMITS (TARGET TOTAL WORDS: 52-60 words for 22-26s duration):
+   - Hook: EXACTLY 8 to 12 words setting up the crime scene.
+   - Suspect 1 alibi: EXACTLY 8 to 11 words.
+   - Suspect 2 alibi: EXACTLY 8 to 11 words.
+   - Suspect 3 alibi: EXACTLY 8 to 11 words.
+   - Challenge line: EXACTLY "One is lying. Spot the killer before time runs out! Three, two, one!" (13 words).
+   - Reveal explanation: EXACTLY 10 to 14 words. Starts with "It was the [Role]! [Crisp scientific reason]!"
+   TOTAL FULL_TEXT MUST BE STRICTLY UNDER 62 WORDS! FAST, PUNCHY, VIRAL!
+5. CASE-SPECIFIC TITLE: Must be unique, under 50 characters, specific to this case and setting.
+   Format examples: "Who Killed the Glacier Scientist? ❄️ #Shorts", "The Submarine Oxygen Sabotage 🌊 #Shorts", "The Antique Clockmaker's Fatal Lie 🕰️ #Shorts".
+   NEVER use generic titles like "Can You Solve This" or "Are You Smarter".
+6. VISUAL PROMPTS (5 SCENES): Must use cohesive art style: "{BASE_ART_STYLE}".
+   - scene_hook: Crime scene visual in {chosen_setting['name']}.
+   - scene_suspect_1: Suspect 1 performing their claimed action in setting.
+   - scene_suspect_2: Suspect 2 performing their claimed action in setting.
+   - scene_suspect_3: Suspect 3 performing their claimed action in setting.
+   - scene_reveal: Dramatic close-up of the contradiction evidence / moment of exposure.
+
+FORBIDDEN:
+- Do NOT use topics from past history: [{recent_topics_str}].
+- Do NOT use cliché tropes (e.g. ice cubes sinking, page 100-101 in book, stone sinks, whispering in loud machine).
+
+OUTPUT STRICT JSON ONLY:
+{{
+  "topic_name": "Unique Case Name (e.g. Glacier Core Sabotage)",
+  "title": "Case-Specific Title Under 50 Chars #Shorts",
+  "description": "Can you spot the fatal lie in 10 seconds? Test your detective IQ!\\n\\n#Shorts #CrimeRiddle #Detective #Mystery #Puzzle",
+  "setting_theme": "{chosen_setting['name']}",
+  "contradiction_core": "{chosen_contradiction['core'][:60]}",
+  "full_text": "Complete spoken text from Hook through Reveal (55 to 65 words)",
+  "suspect_1": {{
+    "role": "ROLE 1 (e.g. THE MECHANIC)",
+    "title": "1. THE MECHANIC",
+    "alibi": "Exact spoken alibi sentence (max 14 words)",
+    "card_text": "Claim: Short 5-7 word summary matching spoken alibi.",
+    "speech_keyword": "unique single lowercase word present in full_text for suspect 1",
+    "image_prompt": "Visual prompt for suspect 1 with base art style"
+  }},
+  "suspect_2": {{
+    "role": "ROLE 2 (e.g. THE PILOT)",
+    "title": "2. THE PILOT",
+    "alibi": "Exact spoken alibi sentence (max 14 words)",
+    "card_text": "Claim: Short 5-7 word summary matching spoken alibi.",
+    "speech_keyword": "unique single lowercase word present in full_text for suspect 2",
+    "image_prompt": "Visual prompt for suspect 2 with base art style"
+  }},
+  "suspect_3": {{
+    "role": "ROLE 3 (e.g. THE COOK)",
+    "title": "3. THE COOK",
+    "alibi": "Exact spoken alibi sentence (max 14 words)",
+    "card_text": "Claim: Short 5-7 word summary matching spoken alibi.",
+    "speech_keyword": "unique single lowercase word present in full_text for suspect 3",
+    "image_prompt": "Visual prompt for suspect 3 with base art style"
+  }},
+  "culprit_role": "ROLE OF SUSPECT {target_culprit_idx}",
+  "culprit_speech_keyword": "speech_keyword of suspect {target_culprit_idx}",
+  "culprit_reason": "REASON: [CRISP UPPERCASE SCIENTIFIC CONTRADICTION]!",
+  "scene_prompts": {{
+    "hook": "Visual prompt for hook crime scene with base art style",
+    "suspect_1": "Visual prompt for suspect 1",
+    "suspect_2": "Visual prompt for suspect 2",
+    "suspect_3": "Visual prompt for suspect 3",
+    "reveal": "Visual prompt for reveal evidence close-up"
+  }}
+}}
+"""
+
+    payload = {
+        "contents": [{"parts": [{"text": system_prompt}]}],
+        "generationConfig": {
+            "temperature": 0.85,
+            "responseMimeType": "application/json"
+        }
+    }
+
+    data = call_gemini_api(payload, timeout=35)
+    raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    return json.loads(raw_text)
+
+# ==============================================================================
+# STEP 2: STRICT LOGIC CRITIC (INDEPENDENT GEMINI EVALUATION)
+# ==============================================================================
+
+def evaluate_logic_with_gemini(script_data: dict) -> dict:
+    """
+    Independent Gemini evaluation step acting as a skeptical Senior Detective.
+    Rejects scientifically flawed, ambiguous, or multi-answer riddles.
+    """
+    topic = script_data.get("topic_name", "")
+    setting = script_data.get("setting_theme", "")
+    s1 = script_data.get("suspect_1", {})
+    s2 = script_data.get("suspect_2", {})
+    s3 = script_data.get("suspect_3", {})
+    culprit_role = script_data.get("culprit_role", "")
+    reason = script_data.get("culprit_reason", "")
+    full_text = script_data.get("full_text", "")
+    word_count = len(full_text.split())
+
+    critic_prompt = f"""
+You are a skeptical Senior Detective and Physics/Logic Critic evaluating a 30-second crime riddle.
+
+CASE UNDER REVIEW:
+- Topic: {topic}
+- Setting: {setting}
+- Suspect 1 ({s1.get('role')}): "{s1.get('alibi')}"
+- Suspect 2 ({s2.get('role')}): "{s2.get('alibi')}"
+- Suspect 3 ({s3.get('role')}): "{s3.get('alibi')}"
+- Accused Culprit: {culprit_role}
+- Contradiction Reason: {reason}
+- Full Script: "{full_text}" (Total words: {word_count})
+
+STRICT CRITERIA:
+1. SCIENTIFIC & LOGICAL SOUNDNESS: Is the contradiction against natural laws/physics 100% indisputable?
+   - Reject ambiguous claims or factual errors (e.g. pages 100-101 facing error, water boiling rules, vacuum physics).
+2. UNIQUENESS OF GUILT: Is there EXACTLY ONE guilty suspect? Are the other 2 suspects completely plausible and innocent?
+3. SCRIPT TIGHTNESS: Is total word count between 52 and 70 words?
+4. QUALITY: Is it clever yet solvable in 10 seconds? (Reject trivial clichés like 'stones sink' or 'whispering over 10 engines').
+
+Return strict JSON:
+{{
+  "valid": true/false,
+  "score": 1-10,
+  "critique": "Brief 1-sentence assessment of logic quality",
+  "refined_reason": "Refined 1-sentence uppercase contradiction reason (or keep existing if good)"
+}}
+"""
+
+    payload = {
+        "contents": [{"parts": [{"text": critic_prompt}]}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "responseMimeType": "application/json"
+        }
+    }
+
+    try:
+        data = call_gemini_api(payload, timeout=25)
+        raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        critic_result = json.loads(raw_text)
+        return critic_result
+    except Exception as e:
+        print(f"⚠️ Logic Critic call warning: {e}. Falling back to rule-based validation.")
+        # Fallback rule-based validation
+        is_valid = (50 <= word_count <= 72) and bool(culprit_role) and bool(reason)
+        return {
+            "valid": is_valid,
+            "score": 8 if is_valid else 5,
+            "critique": "Rule-based validation passed.",
+            "refined_reason": reason
+        }
+
+# ==============================================================================
+# MAIN ORCHESTRATION PIPELINE
+# ==============================================================================
+
 def generate_script_with_ai(history: list, max_attempts: int = 4) -> dict:
     """
-    Procedurally prompts Gemini with random dimensional constraints,
-    verifying every output against history to ensure 100% uniqueness.
+    2-Step Gemini generation:
+    1. Generator creates riddle with strict duration & visual specs.
+    2. Strict Logic Critic verifies logic and uniqueness.
     """
-    history_topics = [h.get("topic_name", "") for h in history if h.get("topic_name")]
-    recent_topics_str = ", ".join(history_topics[-35:]) if history_topics else "None"
-
-    # Identify settings and contradictions already used in recent sliding window
     recent_history = history[-20:] if len(history) > 20 else history
     used_keywords = set()
     for h in recent_history:
@@ -264,7 +392,6 @@ def generate_script_with_ai(history: list, max_attempts: int = 4) -> dict:
         if h.get("culprit_reason"):
             used_keywords.update(extract_core_keywords(h.get("culprit_reason", "")))
 
-    # Filter available settings to ones that don't overlap with recent history
     available_settings = [
         s for s in SETTINGS_POOL
         if not extract_core_keywords(s["name"]).intersection(used_keywords)
@@ -275,8 +402,7 @@ def generate_script_with_ai(history: list, max_attempts: int = 4) -> dict:
     for attempt in range(1, max_attempts + 1):
         chosen_setting = random.choice(available_settings)
         chosen_atmosphere = random.choice(ATMOSPHERES_POOL)
-        
-        # Pick a contradiction compatible with this setting category
+
         compatible_contradictions = [
             c for c in CONTRADICTIONS_POOL
             if ("all" in c["categories"] or chosen_setting["category"] in c["categories"])
@@ -289,119 +415,75 @@ def generate_script_with_ai(history: list, max_attempts: int = 4) -> dict:
             ]
 
         chosen_contradiction = random.choice(compatible_contradictions)
-        chosen_title_hook = random.choice(VIRAL_TITLES_POOL)
         target_culprit_idx = random.choice([1, 2, 3])
 
-        print(f"\n[Thử thách {attempt}/{max_attempts}] Bối cảnh: '{chosen_setting['name']}' | Cơ chế: '{chosen_contradiction['core'][:40]}...' | Thủ phạm: Nghi phạm {target_culprit_idx}")
-
-        system_prompt = f"""
-You are a viral YouTube Shorts creator specializing in interactive "30-SECOND CRIME RIDDLES & DETECTIVE MYSTERIES" (Targeting Global US/UK English Audience).
-Format Concept: "CAN YOU SPOT THE KILLER IN 10 SECONDS?"
-
-MANDATORY PROCEDURAL CONSTRAINTS (ZERO REPETITION):
-1. MANDATORY SETTING: You MUST base this crime mystery entirely inside: "{chosen_setting['name']}".
-2. TIME & ATMOSPHERE: The crime occurred during: "{chosen_atmosphere}".
-3. MANDATORY CULPRIT: The GUILTY CULPRIT MUST BE SUSPECT {target_culprit_idx}!
-   - Suspect {target_culprit_idx} MUST be the only one with a physical, scientific, or logical lie.
-   - The exact contradiction in Suspect {target_culprit_idx}'s alibi MUST be based on this physical principle: "{chosen_contradiction['core']}".
-   - NARRATIVE COHESION: Suspect {target_culprit_idx}'s alibi must naturally fit the setting of "{chosen_setting['name']}" (e.g. if the contradiction is about oil paint/varnish, they were coating equipment/props; if about a magnet, they were retrieving fallen tools; if about ice/water, they were preparing a drink or cooling samples).
-   - The other two suspects MUST have airtight, completely innocent, and realistic alibis.
-   - "culprit_role" MUST be identical to Suspect {target_culprit_idx}'s role!
-4. YOUTUBE TITLE FORMAT: Use or adapt this viral hook: "{chosen_title_hook}".
-5. ABSOLUTELY FORBIDDEN (INSTANT REJECTION):
-   - Do NOT use the words "Midnight Grand" in the topic name.
-   - Do NOT use these previously published topics: [{recent_topics_str}].
-   - BANNED TROPES: Sunbathing at night, watering plants/flowers in freezing blizzard, hot coffee freezing in sub-zero wind, checking tickets in pitch darkness, mail on Sunday.
-
-Strict Formula for 150%+ Retention (Watch-Time + Replay):
-1. LENGTH: Exactly 65 to 75 spoken English words (22 to 26 seconds spoken). FAST, CRISP, VIRAL.
-2. STRUCTURE:
-   - Seconds 0-8 (CRIME HOOK): A murder mystery setup in {chosen_setting['name']}.
-   - Seconds 8-19 (THE 3 SUSPECTS): 3 suspects with concise, tailored roles for {chosen_setting['name']}. Suspect {target_culprit_idx} tells the physical lie.
-   - Seconds 19-24 (CHALLENGE): "One of them is lying. Spot the killer before the timer runs out! Five, four, three, two, one..."
-   - Seconds 24-34 (REVELATION & LOOP): "It was the [Role]! [Explain exact scientific contradiction in 1 crisp sentence]! Did you solve it? Comment YES or NO!"
-
-OUTPUT FORMAT: Strict valid JSON only:
-{{
-  "topic_name": "Unique Topic Name (DO NOT start with Midnight Grand)",
-  "title": "{chosen_title_hook}",
-  "description": "Can you solve this crime mystery in 10 seconds? Spot the liar! #Shorts #CrimeRiddle #Detective #Mystery #IQTest #BrainTeaser",
-  "tags": ["Shorts", "CrimeRiddle", "DetectiveRiddle", "Riddle", "Mystery", "BrainTeaser", "IQTest"],
-  "setting_query": "{chosen_setting['search']}",
-  "full_text": "Complete spoken voiceover text from start to end (65-75 words)",
-  "suspect_1": {{
-    "role": "ROLE 1",
-    "title": "SUSPECT 1: ROLE 1",
-    "alibi": "ALIBI: Concise alibi statement.",
-    "search_keyword": "pixabay footage keyword",
-    "speech_keyword": "unique single word present in full_text for suspect 1"
-  }},
-  "suspect_2": {{
-    "role": "ROLE 2",
-    "title": "SUSPECT 2: ROLE 2",
-    "alibi": "ALIBI: Concise alibi statement.",
-    "search_keyword": "pixabay footage keyword",
-    "speech_keyword": "unique single word present in full_text for suspect 2"
-  }},
-  "suspect_3": {{
-    "role": "ROLE 3",
-    "title": "SUSPECT 3: ROLE 3",
-    "alibi": "ALIBI: Concise alibi statement.",
-    "search_keyword": "pixabay footage keyword",
-    "speech_keyword": "unique single word present in full_text for suspect 3"
-  }},
-  "culprit_role": "ROLE OF SUSPECT {target_culprit_idx}",
-  "culprit_speech_keyword": "speech_keyword of suspect {target_culprit_idx}",
-  "culprit_reason": "REASON: [SHORT UPPERCASE EXPLANATION OF CONTRADICTION]!"
-}}
-"""
-
-        payload = {
-            "contents": [{"parts": [{"text": system_prompt}]}],
-            "generationConfig": {
-                "temperature": 0.90,
-                "responseMimeType": "application/json"
-            }
-        }
+        print(f"\n[BƯỚC 1/2: GENERATOR #{attempt}] Bối cảnh: '{chosen_setting['name']}' | Cơ chế: '{chosen_contradiction['core'][:45]}...'")
 
         try:
-            response = requests.post(GEMINI_URL, json=payload, timeout=30)
-            response.raise_for_status()
-            data = response.json()
-            raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-            script_data = json.loads(raw_text)
+            draft = generate_script_draft(history, chosen_setting, chosen_atmosphere, chosen_contradiction, target_culprit_idx)
 
-            # Validate against history
-            is_dup, dup_reason = check_is_duplicate(script_data, history)
+            # Check history duplication
+            is_dup, dup_reason = check_is_duplicate(draft, history)
             if is_dup:
-                print(f"⚠️ Kịch bản bị từ chối do trùng lặp ({dup_reason}). Đang thử lại với góc sáng tạo mới...")
+                print(f"⚠️ Trùng lặp lịch sử ({dup_reason}). Đổi bối cảnh...")
                 continue
 
-            # Ensure all required keys exist
-            required_keys = ["topic_name", "title", "full_text", "suspect_1", "suspect_2", "suspect_3", "culprit_role", "culprit_reason"]
-            if not all(k in script_data for k in required_keys):
-                print("⚠️ Kịch bản thiếu trường dữ liệu bắt buộc. Đang thử lại...")
+            # Check word count strictly for 22-28s total video duration
+            word_count = len(draft.get("full_text", "").split())
+            if word_count < 48 or word_count > 64:
+                print(f"⚠️ Số từ không tối ưu ({word_count} từ, cần 50-62 từ để đạt thời lượng chuẩn 22-26s). Thử lại...")
                 continue
 
-            script_data["setting_theme"] = chosen_setting["name"]
-            print(f"✅ Kịch bản độc bản xuất sắc: '{script_data.get('topic_name')}' (Thủ phạm: {script_data.get('culprit_role')})")
-            return script_data
+            # Ensure title length < 55 chars
+            title = draft.get("title", "")
+            if len(title) > 55:
+                # Trim cleanly before #Shorts
+                short_title = re.sub(r'\s*#Shorts.*$', '', title)[:40].strip()
+                draft["title"] = f"{short_title} #Shorts"
+
+            # Step 2: Strict Logic Critic
+            print(f"[BƯỚC 2/2: LOGIC CRITIC] Kiểm tra tính xác thực khoa học và tính độc nhất của lời giải...")
+            critique = evaluate_logic_with_gemini(draft)
+            print(f"   -> Điểm Logic: {critique.get('score')}/10 | Đạt chuẩn: {critique.get('valid')} | Nhận xét: {critique.get('critique')}")
+
+            if not critique.get("valid") or critique.get("score", 0) < 7:
+                print(f"⚠️ Kịch bản bị Logic Critic từ chối ({critique.get('critique')}). Tạo lại kịch bản mới...")
+                continue
+
+            if critique.get("refined_reason"):
+                draft["culprit_reason"] = critique["refined_reason"]
+
+            draft["logic_score"] = critique.get("score", 8)
+            draft["logic_critique"] = critique.get("critique", "Approved")
+
+            # Validate scene prompts exist
+            if "scene_prompts" not in draft or not all(k in draft["scene_prompts"] for k in ["hook", "suspect_1", "suspect_2", "suspect_3", "reveal"]):
+                draft["scene_prompts"] = {
+                    "hook": f"Crime scene at {chosen_setting['name']}, victim found, {BASE_ART_STYLE}",
+                    "suspect_1": f"{draft['suspect_1'].get('role')} at {chosen_setting['name']}, {BASE_ART_STYLE}",
+                    "suspect_2": f"{draft['suspect_2'].get('role')} at {chosen_setting['name']}, {BASE_ART_STYLE}",
+                    "suspect_3": f"{draft['suspect_3'].get('role')} at {chosen_setting['name']}, {BASE_ART_STYLE}",
+                    "reveal": f"Close-up evidence showing contradiction at {chosen_setting['name']}, {BASE_ART_STYLE}"
+                }
+
+            print(f"✅ Kịch bản xuất sắc được phê duyệt: '{draft.get('topic_name')}' | Tiêu đề: '{draft.get('title')}'")
+            return draft
 
         except Exception as e:
-            print(f"Lỗi ở lượt gọi {attempt}: {e}")
+            print(f"Lỗi ở lượt tạo {attempt}: {e}")
 
-    raise RuntimeError("Gemini AI failed to produce a non-duplicating script within the maximum attempts.")
+    raise RuntimeError("Gemini AI failed to produce a verified script within the maximum attempts.")
 
 def generate_script():
-    """Generates a dynamic non-duplicating Short script using Gemini AI with fallback safety."""
+    """Generates a dynamic non-duplicating Short script with 2-step AI pipeline and fallback safety."""
     history = load_history()
 
     if GEMINI_API_KEY:
         try:
-            print("Đang kết nối Gemini AI với Bộ ma trận đa chiều chống lặp kịch bản...")
+            print("Đang khởi động Quy trình 2 bước (Generator + Strict Logic Critic)...")
             script_data = generate_script_with_ai(history)
 
-            # Map into standard pipeline format
+            # Map into standard pipeline structure
             script_data["suspect_keywords"] = [
                 script_data["suspect_1"].get("speech_keyword", "first"),
                 script_data["suspect_2"].get("speech_keyword", "second"),
@@ -412,15 +494,6 @@ def generate_script():
                 "assets/riddle/badge_suspect_2.png",
                 "assets/riddle/badge_suspect_3.png"
             ]
-            culprit_role_u = script_data.get("culprit_role", "").upper()
-            s1_role_u = script_data.get("suspect_1", {}).get("role", "").upper()
-            s2_role_u = script_data.get("suspect_2", {}).get("role", "").upper()
-            if culprit_role_u in s1_role_u or s1_role_u in culprit_role_u:
-                script_data["guilty_badge"] = "assets/riddle/badge_suspect_1.png"
-            elif culprit_role_u in s2_role_u or s2_role_u in culprit_role_u:
-                script_data["guilty_badge"] = "assets/riddle/badge_suspect_2.png"
-            else:
-                script_data["guilty_badge"] = "assets/riddle/badge_suspect_3.png"
             script_data["guilty_stamp"] = "assets/riddle/guilty_stamp.png"
 
             # Record in history
@@ -430,14 +503,14 @@ def generate_script():
                 "setting_theme": script_data.get("setting_theme", ""),
                 "culprit_role": script_data.get("culprit_role", ""),
                 "culprit_reason": script_data.get("culprit_reason", ""),
+                "logic_score": script_data.get("logic_score", 8),
                 "generated_at": str(os.getenv("GITHUB_RUN_ID", "local_ai"))
             })
             save_history(history)
             return script_data
         except Exception as e:
-            print(f"Lỗi khi gọi Gemini AI: {e}. Kích hoạt Kho 25 kịch bản độc bản dự phòng...")
+            print(f"Lỗi khi gọi Gemini AI: {e}. Kích hoạt Kho kịch bản độc bản dự phòng...")
 
-    # Fallback rotation if AI fails or no key
     from script_generator_fallback import get_fallback_script
     return get_fallback_script(history)
 
@@ -445,7 +518,7 @@ if __name__ == "__main__":
     s = generate_script()
     print("\n--- KỊCH BẢN ĐÃ TẠO THÀNH CÔNG ---")
     print(f"Topic: {s.get('topic_name')}")
-    print(f"Title: {s.get('title')}")
+    print(f"Title: {s.get('title')} (Length: {len(s.get('title', ''))} chars)")
     print(f"Culprit: {s.get('culprit_role')}")
     print(f"Reason: {s.get('culprit_reason')}")
-    print(f"Full text ({len(s.get('full_text', '').split())} words):\n{s.get('full_text')}")
+    print(f"Words ({len(s.get('full_text', '').split())}): {s.get('full_text')}")

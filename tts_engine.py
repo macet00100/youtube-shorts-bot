@@ -2,6 +2,7 @@ import asyncio
 import os
 import json
 import re
+import subprocess
 import edge_tts
 from config import DEFAULT_VOICE
 
@@ -23,7 +24,7 @@ def build_perfect_subtitles(orig_text: str, words: list) -> str:
     Builds 100% synchronized, perfectly punctuated ASS subtitles.
     Never crosses sentence boundaries. Exact word timings from Microsoft Speech AI.
     Shifts start by -40ms to eliminate voice-leading lag.
-    Positioned in the mobile golden reading zone (MarginV: 430, MarginL/R: 120).
+    Positioned in the mobile golden reading zone (MarginV: 400, MarginL/R: 100).
     """
     ass_header = """[Script Info]
 ScriptType: v4.00+
@@ -33,7 +34,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial Black,110,&H0000FFFF,&H000000FF,&H00000000,&H90000000,-1,0,0,0,100,100,0,0,1,10,5,2,120,120,430,1
+Style: Default,Arial Black,105,&H0000FFFF,&H000000FF,&H00000000,&H90000000,-1,0,0,0,100,100,0,0,1,10,5,2,100,100,400,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -83,7 +84,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         color = '&H0000FFFF&' if (c_idx % 2 == 0) else '&H00FFFFFF&'
         clean_text = text.upper().strip(" .,;:").replace('{', '').replace('}', '')
 
-        # Give voice a crisp 40ms visual lead to kill audio lag
         display_start = max(0.0, start_sec - 0.04)
         padded_end = end_sec + 0.04
         if c_idx + 1 < len(chunks):
@@ -96,22 +96,50 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     return ass_header + "\n".join(events) + "\n"
 
+def trim_trailing_silence(input_audio: str, output_audio: str):
+    """Trims trailing silence from audio using FFmpeg to eliminate dead air at end."""
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", input_audio,
+        "-af", "areverse,silenceremove=start_periods=1:start_duration=0.1:start_threshold=-45dB,areverse",
+        "-c:a", "libmp3lame",
+        "-b:a", "192k",
+        output_audio
+    ]
+    try:
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    except Exception:
+        # Fallback to copy if trim fails
+        if input_audio != output_audio:
+            import shutil
+            shutil.copy2(input_audio, output_audio)
+
 async def generate_speech_and_subtitles(text: str, output_audio: str, output_ass: str, voice: str = DEFAULT_VOICE):
     """
-    Generates audio, frame-perfect synchronized subtitles, and word boundary timestamps.
+    Generates audio at +13% speed, trims trailing silence, and builds frame-perfect synchronized subtitles.
     """
     os.makedirs(os.path.dirname(output_audio), exist_ok=True)
     os.makedirs(os.path.dirname(output_ass), exist_ok=True)
 
-    communicate = edge_tts.Communicate(text=text, voice=voice, rate="+14%", boundary="WordBoundary")
+    raw_audio = output_audio + ".raw.mp3"
+    # Speech rate +15% for crisp, fast-paced retention matching 22-26s target
+    communicate = edge_tts.Communicate(text=text, voice=voice, rate="+15%", boundary="WordBoundary")
     words = []
 
-    with open(output_audio, "wb") as file:
+    with open(raw_audio, "wb") as file:
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
                 file.write(chunk["data"])
             elif chunk["type"] == "WordBoundary":
                 words.append(chunk)
+
+    # Trim trailing silence from audio
+    trim_trailing_silence(raw_audio, output_audio)
+    try:
+        if os.path.exists(raw_audio):
+            os.remove(raw_audio)
+    except Exception:
+        pass
 
     ass_content = build_perfect_subtitles(text, words)
 
@@ -122,13 +150,13 @@ async def generate_speech_and_subtitles(text: str, output_audio: str, output_ass
     with open(words_json_path, "w", encoding="utf-8") as f:
         json.dump(words, f, ensure_ascii=False, indent=2)
 
-    print(f"Audio saved to: {output_audio}")
-    print(f"Subtitles saved to: {output_ass} ({len(words)} exact words tracked, perfect punctuation)")
+    print(f"✅ Giọng đọc Edge-TTS (+13%) đã lưu: {output_audio}")
+    print(f"✅ Phụ đề đồng bộ ({len(words)} từ) đã lưu: {output_ass}")
     return output_audio, output_ass, words
 
 def run_tts(text: str, output_audio: str, output_ass: str, voice: str = DEFAULT_VOICE):
     return asyncio.run(generate_speech_and_subtitles(text, output_audio, output_ass, voice))
 
 if __name__ == "__main__":
-    sample_text = "A billionaire was murdered on a peaceful Sunday afternoon in his locked mansion."
+    sample_text = "A scientist was murdered two miles underwater inside a submarine lab."
     run_tts(sample_text, "output/test_voice.mp3", "output/test_sub.ass")

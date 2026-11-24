@@ -32,53 +32,54 @@ def get_authenticated_service():
 
     return build("youtube", "v3", credentials=creds)
 
-def set_video_thumbnail(youtube, video_id: str, thumbnail_path: str = "assets/thumbnail.png"):
+def set_video_thumbnail(youtube, video_id: str, thumbnail_path: str = None):
     """
-    Sets a custom thumbnail for the video if permitted by YouTube channel status.
-    If the channel lacks Intermediate Features (phone verification), catches gracefully.
+    Sets custom thumbnail if provided and permitted by channel permissions.
     """
     if not thumbnail_path or not os.path.exists(thumbnail_path):
         return
 
     print(f"Setting custom thumbnail from {thumbnail_path}...")
     try:
-        media = MediaFileUpload(thumbnail_path, mimetype="image/png")
+        media = MediaFileUpload(thumbnail_path, mimetype="image/jpeg")
         req = youtube.thumbnails().set(videoId=video_id, media_body=media)
         req.execute()
-        print(f"✅ Đã cập nhật ảnh đại diện (Thumbnail) thành công cho video {video_id}!")
-    except HttpError as e:
-        if "doesn't have permissions to upload and set custom video thumbnails" in str(e) or (hasattr(e, 'resp') and e.resp.status == 403):
-            print(
-                "ℹ️ [Thông báo Thumbnail API]: Kênh chưa bật xác minh số điện thoại trong YouTube Studio để mở quyền Custom Thumbnail qua API.\n"
-                "👉 Ảnh bìa này đã được nhúng sẵn vào khung hình đầu tiên của video Shorts để làm ảnh đại diện tự động!"
-            )
-        else:
-            print(f"⚠️ Lưu ý API Thumbnail: {e}")
+        print(f"✅ Đã cập nhật ảnh đại diện (Thumbnail) cho video {video_id}!")
     except Exception as e:
-        print(f"⚠️ Lưu ý đặt thumbnail: {e}")
+        print(f"ℹ️ Lưu ý đặt thumbnail: {e}")
 
-def upload_short(video_file: str, title: str, description: str, tags: list, privacy_status: str = "public", thumbnail_path: str = "assets/thumbnail.png") -> str:
+def upload_short(video_file: str, title: str, description: str, tags: list, privacy_status: str = "public", thumbnail_path: str = None) -> str:
     """
     Uploads a video to YouTube with Shorts tags and resumable upload.
-    Returns the YouTube Video ID.
+    Outputs clean non-repetitive metadata and returns the YouTube Video ID.
     """
     if not os.path.exists(video_file):
         raise FileNotFoundError(f"Video file not found: {video_file}")
 
-    # Ensure title contains #Shorts for guaranteed Shorts algorithmic pickup
-    if "#Shorts" not in title and "#shorts" not in title:
-        title = f"{title} #Shorts"
+    # Ensure title contains #Shorts for algorithmic classification
+    clean_title = title.strip()
+    if "#Shorts" not in clean_title and "#shorts" not in clean_title:
+        clean_title = f"{clean_title} #Shorts"
 
     youtube = get_authenticated_service()
 
-    # Enrich tags for maximum algorithm discovery
-    all_tags = list(set(tags + ["Shorts", "CrimeRiddle", "DetectiveRiddle", "Riddle", "Mystery", "BrainTeaser", "IQTest", "Quiz", "Puzzle", "ViralShorts"]))
+    # Clean description without duplicate boilerplate
+    clean_desc = description.strip()
+    if "#Shorts" not in clean_desc:
+        clean_desc = f"{clean_desc}\n\n#Shorts #CrimeRiddle #Detective #Mystery #Puzzle"
+
+    # Crisp, relevant tags (maximum 5-6 tags)
+    clean_tags = ["Shorts", "CrimeRiddle", "Detective", "Mystery", "Puzzle", "Riddle"]
+    if tags:
+        for t in tags:
+            if t not in clean_tags and len(clean_tags) < 10:
+                clean_tags.append(t)
 
     body = {
         "snippet": {
-            "title": title[:100],
-            "description": f"{description}\n\nCan you solve this crime mystery in 10 seconds? Spot the liar!\n\n#Shorts #CrimeRiddle #Detective #Mystery #IQTest #BrainTeaser #Quiz",
-            "tags": all_tags[:20],
+            "title": clean_title[:100],
+            "description": clean_desc,
+            "tags": clean_tags,
             "categoryId": "24",  # 24 = Entertainment (High viral reach for Shorts)
             "defaultLanguage": "en",
             "defaultAudioLanguage": "en-US"
@@ -102,7 +103,7 @@ def upload_short(video_file: str, title: str, description: str, tags: list, priv
         media_body=media
     )
 
-    print(f"Uploading '{title}' to YouTube...")
+    print(f"Uploading '{clean_title}' to YouTube...")
     response = None
     retry_count = 0
 
@@ -125,8 +126,8 @@ def upload_short(video_file: str, title: str, description: str, tags: list, priv
     video_url = f"https://youtube.com/shorts/{video_id}"
     print(f"SUCCESS! Video published live at: {video_url}")
 
-    # Set custom thumbnail if provided
-    set_video_thumbnail(youtube, video_id, thumbnail_path)
+    if thumbnail_path and os.path.exists(thumbnail_path):
+        set_video_thumbnail(youtube, video_id, thumbnail_path)
 
     return video_id
 

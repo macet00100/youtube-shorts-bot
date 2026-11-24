@@ -719,5 +719,32 @@
     "culprit_role": "THE SNOWMOBILE MECHANIC",
     "culprit_reason": "REASON: DRY ICE TURNS TO GAS, NOT LIQUID!",
     "generated_at": "44624373026"
+  },
+  {
+    "topic_name": "Deep-Sea Submarine Sabotage",
+    "title": "Who Murdered the Submarine Scientist? 🌊 #Shorts",
+    "setting_theme": "Deep-Sea Submarine Laboratory",
+    "culprit_role": "THE SONAR TECH",
+    "culprit_reason": "REASON: VOICES CANNOT TRAVEL THROUGH MILES OF OCEAN WATER!",
+    "logic_score": 9,
+    "generated_at": "fallback_pool"
+  },
+  {
+    "topic_name": "Venetian Glass Furnace Murder",
+    "title": "The Frozen Venetian Glass Murder 🧊 #Shorts",
+    "setting_theme": "Venetian Glassblowing Furnace",
+    "culprit_role": "APPRENTICE",
+    "culprit_reason": "SUNDIALS REQUIRE DIRECT SUNLIGHT, WHICH IS IMPOSSIBLE DURING AN OVERCAST RAINSTORM!",
+    "logic_score": 10,
+    "generated_at": "local_ai"
+  },
+  {
+    "topic_name": "Stradivarius Violin Workshop Twilight Murder",
+    "title": "The Stradivarius Workshop Murder 🎻 #Shorts",
+    "setting_theme": "Stradivarius Violin Workshop",
+    "culprit_role": "THE WOOD VARNISHER",
+    "culprit_reason": "WARM SMOKE IS BUOYANT AND ALWAYS RISES UPWARD!",
+    "logic_score": 10,
+    "generated_at": "local_ai"
   }
 ]

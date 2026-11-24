@@ -24,27 +24,29 @@ def get_audio_duration(audio_path: str) -> float:
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
     return float(result.stdout.strip())
 
-def compute_scene_timestamps(words, suspect_keywords):
+def compute_scene_timestamps(words: list, suspect_keywords: list) -> dict:
     """
-    Computes exact scene split times based on Microsoft Speech WordBoundary data.
-    Guarantees strict forward monotonicity: intro < suspect_1 < suspect_2 < suspect_3 < challenge < count < reveal.
+    Computes exact scene transition timestamps from Edge-TTS WordBoundary offsets.
+    Guarantees strict forward sequence:
+    hook (0.0s) -> suspect 1 -> suspect 2 -> suspect 3 -> challenge -> count 3 -> count 2 -> count 1 -> reveal.
     """
     clean_words = [re.sub(r'[^a-zA-Z0-9]', '', w['text']).lower() for w in words]
     offsets = [w['offset'] / 10000000.0 for w in words]
 
-    # 1. Find suspects strictly in sequential forward order
+    # 1. Sequential search for 3 suspects
     ts_suspects = []
     last_idx = 0
-    prev_ts = 4.5  # Suspects section starts after intro hook
+    prev_ts = 3.5
 
     for kw in suspect_keywords:
+        kw_clean = kw.lower().strip()
         ts = None
         match_idx = None
         for i in range(last_idx, len(clean_words)):
             cw = clean_words[i]
-            if kw in cw:
+            if kw_clean in cw or (len(kw_clean) > 4 and cw.startswith(kw_clean[:4])):
                 cand_ts = offsets[i-1] if (i > 0 and clean_words[i-1] in ['the', 'suspect']) else offsets[i]
-                if cand_ts >= prev_ts + 2.0:
+                if cand_ts >= prev_ts + 1.8:
                     ts = cand_ts
                     match_idx = i
                     break
@@ -54,30 +56,28 @@ def compute_scene_timestamps(words, suspect_keywords):
             prev_ts = ts
             last_idx = match_idx + 1
         else:
-            fallback_ts = prev_ts + 3.2
+            fallback_ts = prev_ts + 3.0
             ts_suspects.append(fallback_ts)
             prev_ts = fallback_ts
 
-    # 2. Find challenge strictly after suspect 3
+    # 2. Challenge sentence ("one of them", "spot", "killer", "lying")
     ts_challenge = None
     chal_idx = None
     for i in range(last_idx, len(clean_words)):
         cw = clean_words[i]
-        if cw in ['one', 'spot', 'liar', 'killer'] and offsets[i] >= prev_ts + 2.0:
+        if cw in ['one', 'spot', 'liar', 'killer', 'lying'] and offsets[i] >= prev_ts + 1.8:
             ts_challenge = offsets[i]
             chal_idx = i
             break
 
     if ts_challenge is None:
-        ts_challenge = prev_ts + 3.5
+        ts_challenge = prev_ts + 3.2
         last_idx = len(clean_words)
     else:
         last_idx = chal_idx + 1
     prev_ts = ts_challenge
 
-    # 3. Find countdown numbers (five, four, three, two, one)
-    ts_5 = None
-    ts_4 = None
+    # 3. 3-Second Countdown ("three", "two", "one")
     ts_3 = None
     ts_2 = None
     ts_1 = None
@@ -85,218 +85,199 @@ def compute_scene_timestamps(words, suspect_keywords):
         cw = clean_words[i]
         off = offsets[i]
         if off > prev_ts:
-            if cw == 'five' and ts_5 is None: ts_5 = off
-            elif cw == 'four' and ts_5 and ts_4 is None: ts_4 = off
-            elif cw == 'three' and ts_4 and ts_3 is None: ts_3 = off
-            elif cw == 'two' and ts_3 and ts_2 is None: ts_2 = off
+            if cw == 'three' and ts_3 is None:
+                ts_3 = off
+            elif cw == 'two' and ts_3 and ts_2 is None:
+                ts_2 = off
             elif cw == 'one' and ts_2 and ts_1 is None:
                 ts_1 = off
                 last_idx = i + 1
 
-    if ts_5 is None: ts_5 = prev_ts + 3.5
-    if ts_4 is None: ts_4 = ts_5 + 0.8
-    if ts_3 is None: ts_3 = ts_4 + 0.6
-    if ts_2 is None: ts_2 = ts_3 + 0.6
-    if ts_1 is None: ts_1 = ts_2 + 0.6
+    if ts_3 is None: ts_3 = prev_ts + 2.5
+    if ts_2 is None: ts_2 = ts_3 + 0.7
+    if ts_1 is None: ts_1 = ts_2 + 0.7
     prev_ts = ts_1
 
-    # 4. Find reveal ("it was") strictly after countdown
+    # 4. Reveal ("it was")
     ts_reveal = None
     for i in range(last_idx, len(clean_words)):
         cw = clean_words[i]
-        if cw == 'it' and i + 1 < len(clean_words) and clean_words[i+1] == 'was':
+        if cw == 'it' and (i + 1 < len(clean_words) and clean_words[i+1] == 'was'):
             if offsets[i] >= prev_ts:
                 ts_reveal = offsets[i]
                 break
 
     if ts_reveal is None:
-        ts_reveal = prev_ts + 1.2
+        ts_reveal = prev_ts + 0.9
 
     return {
-        "suspect_1": max(4.0, ts_suspects[0]),
-        "suspect_2": max(ts_suspects[0] + 2.5, ts_suspects[1]),
-        "suspect_3": max(ts_suspects[1] + 2.5, ts_suspects[2]),
-        "challenge": max(ts_suspects[2] + 2.5, ts_challenge),
-        "count_5": max(ts_challenge + 2.5, ts_5),
-        "count_4": ts_4,
-        "count_3": ts_3,
+        "suspect_1": max(3.5, ts_suspects[0]),
+        "suspect_2": max(ts_suspects[0] + 2.2, ts_suspects[1]),
+        "suspect_3": max(ts_suspects[1] + 2.2, ts_suspects[2]),
+        "challenge": max(ts_suspects[2] + 2.2, ts_challenge),
+        "count_3": max(ts_challenge + 2.0, ts_3),
         "count_2": ts_2,
         "count_1": ts_1,
-        "reveal": max(ts_1 + 0.8, ts_reveal)
+        "reveal": max(ts_1 + 0.7, ts_reveal)
     }
 
-def validate_video_file(file_path: str) -> str:
-    """Guarantees that the input file path exists and is a valid video."""
-    if file_path and os.path.exists(file_path) and os.path.getsize(file_path) > 10000:
-        return file_path
-    from download_stock_videos import get_stock_video_for_query
-    return get_stock_video_for_query("dark storm night", "fallback_scene")
-
-def create_cover_clip(image_path: str, duration: float, output_path: str) -> str:
+def create_kenburns_segment(image_path: str, badge_overlay: str, duration: float, output_path: str, motion_type: str = "zoom_in") -> str:
     """
-    Renders the opening cover / thumbnail frame (1080x1920) so that
-    YouTube and short-form video players capture this exact frame as the default video thumbnail.
+    Renders an individual scene video clip with smooth Ken Burns camera motion and UI overlays:
+    - Top Banner at y=80
+    - Alibi Card at y=240
+    - Zero reusable video templates, 100% unique AI scene illustration!
     """
-    img = os.path.abspath(image_path).replace("\\", "/")
-    filter_complex = (
-        f"[0:v]loop=loop=-1:size=1:start=0,fps={FPS},"
-        f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=increase,"
-        f"crop={VIDEO_WIDTH}:{VIDEO_HEIGHT},setsar=1,settb=AVTB,setpts=PTS-STARTPTS[v]"
-    )
-    cmd = [
-        "ffmpeg", "-y",
-        "-loop", "1", "-i", img,
-        "-filter_complex", filter_complex,
-        "-map", "[v]",
-        "-t", f"{duration:.3f}",
-        "-pix_fmt", "yuv420p",
-        "-c:v", "libx264",
-        "-r", str(FPS),
-        "-preset", "veryfast",
-        output_path
-    ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    return output_path
-
-def create_video_clip_segment(video_path: str, badge_overlay: str, duration: float, output_path: str) -> str:
-    """
-    Renders a standard video segment optimized for mobile ergonomics:
-    - Top Banner at y=90 (clears phone notch / top UI)
-    - Suspect Card / Challenge Card at y=250
-    """
-    video_path = validate_video_file(video_path)
     banner = os.path.abspath("assets/riddle/riddle_banner.png").replace("\\", "/")
-    vid = os.path.abspath(video_path).replace("\\", "/")
+    img = os.path.abspath(image_path).replace("\\", "/")
+    d = max(0.5, duration)
+
+    # Mathematical Ken Burns camera motion expressions
+    if motion_type == "zoom_in":
+        kb_filter = f"fps={FPS},scale=w='{VIDEO_WIDTH}*(1+0.08*t/{d:.3f})':h='{VIDEO_HEIGHT}*(1+0.08*t/{d:.3f})':eval=frame,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(in_w-{VIDEO_WIDTH})/2:(in_h-{VIDEO_HEIGHT})/2,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
+    elif motion_type == "pan_right":
+        scale_w = int(VIDEO_WIDTH * 1.10)
+        scale_h = int(VIDEO_HEIGHT * 1.10)
+        kb_filter = f"fps={FPS},scale={scale_w}:{scale_h},crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:'({scale_w}-{VIDEO_WIDTH})*(t/{d:.3f})':'({scale_h}-{VIDEO_HEIGHT})/2',setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
+    elif motion_type == "pan_left":
+        scale_w = int(VIDEO_WIDTH * 1.10)
+        scale_h = int(VIDEO_HEIGHT * 1.10)
+        kb_filter = f"fps={FPS},scale={scale_w}:{scale_h},crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:'({scale_w}-{VIDEO_WIDTH})*(1-t/{d:.3f})':'({scale_h}-{VIDEO_HEIGHT})/2',setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
+    elif motion_type == "zoom_out":
+        kb_filter = f"fps={FPS},scale=w='{VIDEO_WIDTH}*(1.08-0.08*t/{d:.3f})':h='{VIDEO_HEIGHT}*(1.08-0.08*t/{d:.3f})':eval=frame,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(in_w-{VIDEO_WIDTH})/2:(in_h-{VIDEO_HEIGHT})/2,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
+    else:
+        kb_filter = f"fps={FPS},scale=w='{VIDEO_WIDTH}*(1+0.06*t/{d:.3f})':h='{VIDEO_HEIGHT}*(1+0.06*t/{d:.3f})':eval=frame,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(in_w-{VIDEO_WIDTH})/2:(in_h-{VIDEO_HEIGHT})/2,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
 
     if badge_overlay and os.path.exists(badge_overlay):
         badge = os.path.abspath(badge_overlay).replace("\\", "/")
         filter_complex = (
-            f"[0:v]fps={FPS},scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=increase,"
-            f"crop={VIDEO_WIDTH}:{VIDEO_HEIGHT},setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base];"
-            f"[base][1:v]overlay=(W-w)/2:90[v1];"
-            f"[v1][2:v]overlay=(W-w)/2:250[v]"
+            f"[0:v]{kb_filter};"
+            f"[base][1:v]overlay=(W-w)/2:80[v1];"
+            f"[v1][2:v]overlay=(W-w)/2:240[v]"
         )
-        inputs = ["-stream_loop", "-1", "-i", vid, "-loop", "1", "-i", banner, "-loop", "1", "-i", badge]
+        inputs = ["-loop", "1", "-i", img, "-loop", "1", "-i", banner, "-loop", "1", "-i", badge]
     else:
         filter_complex = (
-            f"[0:v]fps={FPS},scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=increase,"
-            f"crop={VIDEO_WIDTH}:{VIDEO_HEIGHT},setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base];"
-            f"[base][1:v]overlay=(W-w)/2:90[v]"
+            f"[0:v]{kb_filter};"
+            f"[base][1:v]overlay=(W-w)/2:80[v]"
         )
-        inputs = ["-stream_loop", "-1", "-i", vid, "-loop", "1", "-i", banner]
+        inputs = ["-loop", "1", "-i", img, "-loop", "1", "-i", banner]
 
     cmd = [
         "ffmpeg", "-y",
         *inputs,
         "-filter_complex", filter_complex,
         "-map", "[v]",
-        "-t", f"{duration:.3f}",
+        "-t", f"{d:.3f}",
         "-pix_fmt", "yuv420p",
         "-c:v", "libx264",
         "-r", str(FPS),
         "-preset", "veryfast",
         output_path
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return output_path
 
-def create_live_countdown_segment(video_path: str, duration: float, output_path: str, ts_info: dict) -> str:
+def create_lineup_countdown_segment(bg_image: str, lineup_screen: str, duration: float, output_path: str, ts_info: dict) -> str:
     """
-    Renders the ACTIVE live countdown segment ticking down:
-    5 -> 4 -> 3 -> 2 -> 1 in exact sync with Christopher's counting voice!
-    Positioned in the prime visual focal zone at y=660.
+    Renders the SUSPECT LINEUP screen with active 3-second live countdown (3 -> 2 -> 1).
+    Displays all 3 suspects stacked together so viewers can pause and re-check alibis.
+    NO TW STEEL watch clip, clean and informative!
     """
-    video_path = validate_video_file(video_path)
     banner = os.path.abspath("assets/riddle/riddle_banner.png").replace("\\", "/")
-    t5 = os.path.abspath("assets/riddle/timer_5.png").replace("\\", "/")
-    t4 = os.path.abspath("assets/riddle/timer_4.png").replace("\\", "/")
+    lineup = os.path.abspath(lineup_screen).replace("\\", "/")
     t3 = os.path.abspath("assets/riddle/timer_3.png").replace("\\", "/")
     t2 = os.path.abspath("assets/riddle/timer_2.png").replace("\\", "/")
     t1 = os.path.abspath("assets/riddle/timer_1.png").replace("\\", "/")
-    vid = os.path.abspath(video_path).replace("\\", "/")
+    bg = os.path.abspath(bg_image).replace("\\", "/")
 
-    t_start = ts_info["count_5"]
-    d4 = max(0.2, ts_info["count_4"] - t_start)
-    d3 = max(d4 + 0.2, ts_info["count_3"] - t_start)
-    d2 = max(d3 + 0.2, ts_info["count_2"] - t_start)
-    d1 = max(d2 + 0.2, ts_info["count_1"] - t_start)
+    d = max(2.5, duration)
+    t_start = ts_info.get("count_3", 0.0)
+    d2 = max(0.4, ts_info.get("count_2", t_start + 0.7) - t_start)
+    d1 = max(d2 + 0.4, ts_info.get("count_1", t_start + 1.4) - t_start)
+
+    # Subtle camera zoom on backdrop
+    kb_filter = f"fps={FPS},scale=w='{VIDEO_WIDTH}*(1+0.04*t/{d:.3f})':h='{VIDEO_HEIGHT}*(1+0.04*t/{d:.3f})':eval=frame,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(in_w-{VIDEO_WIDTH})/2:(in_h-{VIDEO_HEIGHT})/2,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
 
     filter_complex = (
-        f"[0:v]fps={FPS},scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=increase,"
-        f"crop={VIDEO_WIDTH}:{VIDEO_HEIGHT},setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base];"
-        f"[base][1:v]overlay=(W-w)/2:90[v0];"
-        f"[v0][2:v]overlay=(W-w)/2:660:enable='between(t,0,{d4:.2f})'[v_t5];"
-        f"[v_t5][3:v]overlay=(W-w)/2:660:enable='between(t,{d4:.2f},{d3:.2f})'[v_t4];"
-        f"[v_t4][4:v]overlay=(W-w)/2:660:enable='between(t,{d3:.2f},{d2:.2f})'[v_t3];"
-        f"[v_t3][5:v]overlay=(W-w)/2:660:enable='between(t,{d2:.2f},{d1:.2f})'[v_t2];"
-        f"[v_t2][6:v]overlay=(W-w)/2:660:enable='gte(t,{d1:.2f})'[v]"
+        f"[0:v]{kb_filter};"
+        f"[base][1:v]overlay=(W-w)/2:80[v0];"
+        f"[v0][2:v]overlay=(W-w)/2:240[v_lineup];"
+        f"[v_lineup][3:v]overlay=(W-w)/2:910:enable='between(t,0,{d2:.2f})'[v_t3];"
+        f"[v_t3][4:v]overlay=(W-w)/2:910:enable='between(t,{d2:.2f},{d1:.2f})'[v_t2];"
+        f"[v_t2][5:v]overlay=(W-w)/2:910:enable='gte(t,{d1:.2f})'[v]"
     )
 
     cmd = [
         "ffmpeg", "-y",
-        "-stream_loop", "-1", "-i", vid,
+        "-loop", "1", "-i", bg,
         "-loop", "1", "-i", banner,
-        "-loop", "1", "-i", t5,
-        "-loop", "1", "-i", t4,
+        "-loop", "1", "-i", lineup,
         "-loop", "1", "-i", t3,
         "-loop", "1", "-i", t2,
         "-loop", "1", "-i", t1,
         "-filter_complex", filter_complex,
         "-map", "[v]",
-        "-t", f"{duration:.3f}",
+        "-t", f"{d:.3f}",
         "-pix_fmt", "yuv420p",
         "-c:v", "libx264",
         "-r", str(FPS),
         "-preset", "veryfast",
         output_path
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return output_path
 
-def create_reveal_clip(video_path: str, guilty_stamp: str, duration: float, output_path: str, guilty_badge: str = None) -> str:
+def create_reveal_segment(reveal_image: str, guilty_stamp: str, duration: float, output_path: str) -> str:
     """
     Renders the dramatic revelation scene:
-    Shows Top Banner at y=90 and the prominent red CASE SOLVED: GUILTY stamp centered at y=420.
-    Clean, focused, cinematic, and clutter-free without overlapping duplicate cards!
+    Slow zoom-in on the evidence / exposure visual with CASE SOLVED: GUILTY stamp at y=360.
+    Ends sharply without lingering delay.
     """
-    video_path = validate_video_file(video_path)
     banner = os.path.abspath("assets/riddle/riddle_banner.png").replace("\\", "/")
     stamp = os.path.abspath(guilty_stamp).replace("\\", "/")
-    vid = os.path.abspath(video_path).replace("\\", "/")
+    img = os.path.abspath(reveal_image).replace("\\", "/")
+    d = max(1.5, duration)
+
+    # Dramatic camera zoom-in toward evidence
+    kb_filter = f"fps={FPS},scale=w='{VIDEO_WIDTH}*(1+0.12*t/{d:.3f})':h='{VIDEO_HEIGHT}*(1+0.12*t/{d:.3f})':eval=frame,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(in_w-{VIDEO_WIDTH})/2:(in_h-{VIDEO_HEIGHT})/2,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base]"
 
     filter_complex = (
-        f"[0:v]fps={FPS},scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=increase,"
-        f"crop={VIDEO_WIDTH}:{VIDEO_HEIGHT},setsar=1,settb=AVTB,setpts=PTS-STARTPTS[base];"
-        f"[base][1:v]overlay=(W-w)/2:90[v1];"
-        f"[v1][2:v]overlay=(W-w)/2:420[v]"
+        f"[0:v]{kb_filter};"
+        f"[base][1:v]overlay=(W-w)/2:80[v1];"
+        f"[v1][2:v]overlay=(W-w)/2:360[v]"
     )
+
     cmd = [
         "ffmpeg", "-y",
-        "-stream_loop", "-1", "-i", vid,
+        "-loop", "1", "-i", img,
         "-loop", "1", "-i", banner,
         "-loop", "1", "-i", stamp,
         "-filter_complex", filter_complex,
         "-map", "[v]",
-        "-t", f"{duration:.3f}",
+        "-t", f"{d:.3f}",
         "-pix_fmt", "yuv420p",
         "-c:v", "libx264",
         "-r", str(FPS),
         "-preset", "veryfast",
         output_path
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return output_path
 
-def render_final_short(image_paths: list, voice_audio: str, subtitle_ass: str, output_video: str, script_data: dict = None, words_data: list = None):
+def render_final_short(scene_images: dict, voice_audio: str, subtitle_ass: str, output_video: str, script_data: dict = None, words_data: list = None):
     """
-    Renders the complete Detective Short with 100% speech-synchronized scene cuts,
-    live animated countdown, and frame-perfect revelation.
+    Renders the complete 22-28 second Detective Short with:
+    1. Zero intro delay (starts immediately at 0.0s on the Hook scene).
+    2. 5 AI scene illustrations with smooth Ken Burns pan/zoom.
+    3. 3-second live countdown on the Suspect Lineup screen.
+    4. Crisp, decisive reveal with CASE SOLVED: GUILTY stamp.
     """
     os.makedirs(os.path.dirname(output_video), exist_ok=True)
     total_duration = get_audio_duration(voice_audio)
     temp_dir = os.path.dirname(output_video)
 
-    # Load words if not provided directly
+    # Load words if not passed
     if not words_data:
         words_json_path = subtitle_ass.replace('.ass', '_words.json')
         if os.path.exists(words_json_path):
@@ -306,86 +287,62 @@ def render_final_short(image_paths: list, voice_audio: str, subtitle_ass: str, o
             except Exception:
                 words_data = []
 
-    # Default fallback script metadata if None passed
-    if not script_data:
-        script_data = {
-            "suspect_keywords": ["butler", "chef", "maid"],
-            "suspect_badges": [
-                "assets/riddle/badge_butler.png",
-                "assets/riddle/badge_chef.png",
-                "assets/riddle/badge_maid.png"
-            ],
-            "stock_videos": {
-                "hook": "assets/stock_videos/mansion_storm.mp4",
-                "suspect_1": "assets/stock_videos/butler_waiter.mp4",
-                "suspect_2": "assets/stock_videos/chef_cooking.mp4",
-                "suspect_3": "assets/stock_videos/rain_mail.mp4",
-                "challenge": "assets/stock_videos/clock_ticking.mp4",
-                "countdown": "assets/stock_videos/clock_ticking.mp4",
-                "reveal": "assets/stock_videos/reveal_lightning.mp4"
-            },
-            "guilty_badge": "assets/riddle/badge_maid.png",
-            "guilty_stamp": "assets/riddle/guilty_stamp.png"
-        }
-
-    suspect_kws = script_data.get("suspect_keywords", ["butler", "chef", "maid"])
+    suspect_kws = script_data.get("suspect_keywords", ["first", "second", "third"])
     badges = script_data.get("suspect_badges", [
-        "assets/riddle/badge_butler.png",
-        "assets/riddle/badge_chef.png",
-        "assets/riddle/badge_maid.png"
+        "assets/riddle/badge_suspect_1.png",
+        "assets/riddle/badge_suspect_2.png",
+        "assets/riddle/badge_suspect_3.png"
     ])
-    stock_vids = script_data.get("stock_videos", {})
-    guilty_badge = script_data.get("guilty_badge", badges[-1])
     guilty_stamp = script_data.get("guilty_stamp", "assets/riddle/guilty_stamp.png")
 
-    # Compute exact speech-aligned transition timestamps
+    # Speech transition timestamps
     if words_data:
         ts = compute_scene_timestamps(words_data, suspect_kws)
     else:
         ts = {
-            "suspect_1": 8.0, "suspect_2": 11.5, "suspect_3": 15.0,
-            "challenge": 19.0, "count_5": 24.0, "count_4": 24.8,
-            "count_3": 25.4, "count_2": 26.0, "count_1": 26.6,
-            "reveal": 28.0
+            "suspect_1": 4.0, "suspect_2": 7.5, "suspect_3": 11.0,
+            "challenge": 14.5, "count_3": 18.0, "count_2": 18.8,
+            "count_1": 19.6, "reveal": 20.8
         }
 
-    t_intro = max(ts["suspect_1"], 4.0)
-    t_sus1 = max(ts["suspect_2"] - ts["suspect_1"], 2.5)
-    t_sus2 = max(ts["suspect_3"] - ts["suspect_2"], 2.5)
-    t_sus3 = max(ts["challenge"] - ts["suspect_3"], 2.5)
-    t_chal = max(ts["count_5"] - ts["challenge"], 2.5)
-    t_count = max(ts["reveal"] - ts["count_5"], 3.0)
-    t_reveal = max(total_duration - ts["reveal"], 4.0)
+    t_hook = max(ts["suspect_1"], 3.5)
+    t_sus1 = max(ts["suspect_2"] - ts["suspect_1"], 2.2)
+    t_sus2 = max(ts["suspect_3"] - ts["suspect_2"], 2.2)
+    t_sus3 = max(ts["challenge"] - ts["suspect_3"], 2.2)
+    t_count = max(ts["reveal"] - ts["challenge"], 3.0)
+    # Crisp ending: 3.5s to 4.5s for the reveal statement and GUILTY stamp
+    t_reveal = max(total_duration - ts["reveal"], 3.5)
 
-    print(f"Exact speech-aligned cuts: intro={t_intro:.2f}s, sus1={t_sus1:.2f}s, sus2={t_sus2:.2f}s, "
-          f"sus3={t_sus3:.2f}s, chal={t_chal:.2f}s, count={t_count:.2f}s, rev={t_reveal:.2f}s (Total: {total_duration:.2f}s)")
+    print(f"🎬 Scene cuts (Total audio: {total_duration:.2f}s): "
+          f"Hook={t_hook:.2f}s, Sus1={t_sus1:.2f}s, Sus2={t_sus2:.2f}s, "
+          f"Sus3={t_sus3:.2f}s, Countdown={t_count:.2f}s, Reveal={t_reveal:.2f}s")
 
-    vid_hook = stock_vids.get("hook", "assets/stock_videos/mansion_storm.mp4")
-    vid_s1 = stock_vids.get("suspect_1", "assets/stock_videos/butler_waiter.mp4")
-    vid_s2 = stock_vids.get("suspect_2", "assets/stock_videos/chef_cooking.mp4")
-    vid_s3 = stock_vids.get("suspect_3", "assets/stock_videos/rain_mail.mp4")
-    vid_chal = stock_vids.get("challenge", "assets/stock_videos/clock_ticking.mp4")
-    vid_count = stock_vids.get("countdown", "assets/stock_videos/clock_ticking.mp4")
-    vid_rev = stock_vids.get("reveal", "assets/stock_videos/ocean_storm.mp4")
+    img_hook = scene_images.get("hook", "assets/characters/mansion.jpg")
+    img_s1 = scene_images.get("suspect_1", "assets/characters/butler.jpg")
+    img_s2 = scene_images.get("suspect_2", "assets/characters/maid.jpg")
+    img_s3 = scene_images.get("suspect_3", "assets/characters/butler.jpg")
+    img_rev = scene_images.get("reveal", img_hook)
 
-    seg2 = create_video_clip_segment(vid_s1, badges[0], t_sus1, os.path.join(temp_dir, "seg2.mp4"))
-    seg3 = create_video_clip_segment(vid_s2, badges[1], t_sus2, os.path.join(temp_dir, "seg3.mp4"))
-    seg4 = create_video_clip_segment(vid_s3, badges[2], t_sus3, os.path.join(temp_dir, "seg4.mp4"))
-    seg5 = create_video_clip_segment(vid_chal, "assets/riddle/badge_challenge.png", t_chal, os.path.join(temp_dir, "seg5.mp4"))
-    seg6 = create_live_countdown_segment(vid_count, t_count, os.path.join(temp_dir, "seg6.mp4"), ts)
-    seg7 = create_reveal_clip(vid_rev, guilty_stamp, t_reveal, os.path.join(temp_dir, "seg7.mp4"))
+    # 1. Hook Scene (0.0s immediately, slow zoom-in)
+    seg1 = create_kenburns_segment(img_hook, None, t_hook, os.path.join(temp_dir, "seg1.mp4"), motion_type="zoom_in")
 
-    cover_thumb_file = "assets/thumbnail.png"
-    if os.path.exists(cover_thumb_file) and t_intro > 2.0:
-        t_cover = 0.5
-        t_hook = max(0.5, t_intro - t_cover)
-        seg_cover = create_cover_clip(cover_thumb_file, t_cover, os.path.join(temp_dir, "seg_cover.mp4"))
-        seg1 = create_video_clip_segment(vid_hook, None, t_hook, os.path.join(temp_dir, "seg1.mp4"))
-        segment_files = [seg_cover, seg1, seg2, seg3, seg4, seg5, seg6, seg7]
-        print(f"🎬 Đã chèn khung hình Thumbnail bìa chính thức ({t_cover}s) làm Frame 0 cho YouTube Shorts!")
-    else:
-        seg1 = create_video_clip_segment(vid_hook, None, t_intro, os.path.join(temp_dir, "seg1.mp4"))
-        segment_files = [seg1, seg2, seg3, seg4, seg5, seg6, seg7]
+    # 2. Suspect 1 (Pan right)
+    seg2 = create_kenburns_segment(img_s1, badges[0], t_sus1, os.path.join(temp_dir, "seg2.mp4"), motion_type="pan_right")
+
+    # 3. Suspect 2 (Pan left)
+    seg3 = create_kenburns_segment(img_s2, badges[1], t_sus2, os.path.join(temp_dir, "seg3.mp4"), motion_type="pan_left")
+
+    # 4. Suspect 3 (Zoom in)
+    seg4 = create_kenburns_segment(img_s3, badges[2], t_sus3, os.path.join(temp_dir, "seg4.mp4"), motion_type="zoom_in")
+
+    # 5. Suspect Lineup + 3-Second Countdown
+    lineup_path = "assets/riddle/suspect_lineup.png"
+    seg5 = create_lineup_countdown_segment(img_hook, lineup_path, t_count, os.path.join(temp_dir, "seg5.mp4"), ts)
+
+    # 6. Reveal + CASE SOLVED: GUILTY stamp
+    seg6 = create_reveal_segment(img_rev, guilty_stamp, t_reveal, os.path.join(temp_dir, "seg6.mp4"))
+
+    segment_files = [seg1, seg2, seg3, seg4, seg5, seg6]
 
     # Background music
     bg_music_file = None
@@ -399,7 +356,7 @@ def render_final_short(image_paths: list, voice_audio: str, subtitle_ass: str, o
     cmd = ["ffmpeg", "-y"]
     for seg in segment_files:
         cmd.extend(["-i", seg])
-    
+
     cmd.extend(["-i", voice_audio])
     audio_input_idx = len(segment_files)
 
@@ -409,7 +366,7 @@ def render_final_short(image_paths: list, voice_audio: str, subtitle_ass: str, o
     if bg_music_file:
         cmd.extend(["-stream_loop", "-1", "-i", bg_music_file])
         bgm_input_idx = audio_input_idx + 1
-        filter_chain += f"; [{bgm_input_idx}:a]volume=0.20[bgm]; [{audio_input_idx}:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[a]"
+        filter_chain += f"; [{bgm_input_idx}:a]volume=0.18[bgm]; [{audio_input_idx}:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[a]"
         cmd.extend([
             "-filter_complex", filter_chain,
             "-map", "[v]",
@@ -433,13 +390,13 @@ def render_final_short(image_paths: list, voice_audio: str, subtitle_ass: str, o
         output_video
     ])
 
-    print("Rendering perfectly synchronized Detective Short with FFmpeg...")
+    print("Rendering final Detective Short with FFmpeg...")
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if res.returncode != 0:
         print(f"FFmpeg error: {res.stderr}")
         raise RuntimeError(f"FFmpeg render failed: {res.stderr}")
 
-    # Clean up temp files
+    # Clean up temp segments
     for s in segment_files:
         try:
             if os.path.exists(s):
@@ -447,7 +404,7 @@ def render_final_short(image_paths: list, voice_audio: str, subtitle_ass: str, o
         except Exception:
             pass
 
-    print(f"Render completed: {output_video}")
+    print(f"✅ Render thành công video Shorts hoàn chỉnh: {output_video}")
     return output_video
 
 if __name__ == "__main__":
