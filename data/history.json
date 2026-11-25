@@ -769,5 +769,14 @@
     "culprit_reason": "REASON: DIGITAL MICROWAVE DISPLAYS ARE COMPLETELY DARK DURING A POWER OUTAGE!",
     "logic_score": 9,
     "generated_at": "fallback_pool"
+  },
+  {
+    "topic_name": "Harbor Fog Horn Lighthouse Murder",
+    "title": "Who Killed the Lighthouse Captain? 🕵️ #Shorts",
+    "setting_theme": "Harbor Fog Horn Lighthouse",
+    "culprit_role": "HARBOR PILOT",
+    "culprit_reason": "RUNNING ACROSS OPEN GROUND WOULD LEAVE VISIBLE FOOTPRINTS IN FRESH SNOWFALL!",
+    "logic_score": 8.5,
+    "generated_at": "45609639574"
   }
 ]
