@@ -787,5 +787,14 @@
     "culprit_reason": "REASON: A LIT ROOM TURNS GLASS INTO A MIRROR; YOU CANNOT SEE OUTSIDE INTO PITCH BLACK!",
     "logic_score": 9,
     "generated_at": "45995045807"
+  },
+  {
+    "topic_name": "Arctic Glaciology Research Camp Cold Engine",
+    "title": "The Arctic Frozen Car Lie ❄️ #Shorts",
+    "setting_theme": "Arctic Glaciology Research Camp",
+    "culprit_role": "THE MECHANIC",
+    "culprit_reason": "REASON: A RECENTLY DRIVEN ENGINE STAYS HOT AND WOULD HAVE MELTED THE HOOD FROST!",
+    "logic_score": 9,
+    "generated_at": "46142517347"
   }
 ]
